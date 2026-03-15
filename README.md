@@ -137,3 +137,29 @@ Terminate the active user session.
 - SSN input is masked in the UI and converted to a token before submission.
 - Sensitive form payloads (SSN, passwords, plans) are never written to `localStorage`.
 - Only session-safe display metadata is stored (`name`, `email`) to restore auth UI state on refresh.
+
+## Quality checks
+
+Install tooling dependencies:
+
+```bash
+npm install
+```
+
+Run JavaScript linting:
+
+```bash
+npm run lint
+```
+
+Run formatting validation:
+
+```bash
+npm run format:check
+```
+
+Run all quality gates together:
+
+```bash
+npm run validate
+```
