@@ -1,172 +1,360 @@
-let currentUser = null;
-let chatOpen = false;
-let fontSizeLevel = 0;
-const baseFontSize = 16;
+// Centralized App State
+const STORAGE_KEYS = {
+  USER: 'govtrade.user',
+  FONT_SIZE_LEVEL: 'govtrade.fontSizeLevel',
+  HIGH_CONTRAST: 'govtrade.highContrast',
+};
 
-const faqItems = [
-    {
-        question: 'Who is eligible for the GovTrade grant?',
-        answer: 'Applicants must be at least 18 years old, provide valid identity information, and complete the onboarding questionnaire.'
-    },
-    {
-        question: 'How quickly are applications reviewed?',
-        answer: 'Most applications are reviewed in 7-14 business days depending on submission quality and verification checks.'
-    },
-    {
-        question: 'Can I withdraw funds immediately?',
-        answer: 'No. Participants must complete onboarding and generate verified trading performance before withdrawal requests are enabled.'
-    }
-];
+const appState = {
+  currentUser: null,
+  chatOpen: false,
+  fontSizeLevel: 0,
+  baseFontSize: 16,
+  minFontSizeLevel: -2,
+  maxFontSizeLevel: 4,
+  highContrast: false,
+  toastTimerId: null,
+};
 
-document.addEventListener('DOMContentLoaded', () => {
-    checkAuthStatus();
-    loadSavedPreferences();
-    renderFaqIfPresent();
+function safeGetElementById(id) {
+  return document.getElementById(id);
+}
 
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            closeApplyModal();
-            closeLoginModal();
-        }
-    });
+function persistPreferences() {
+  localStorage.setItem(STORAGE_KEYS.FONT_SIZE_LEVEL, String(appState.fontSizeLevel));
+  localStorage.setItem(STORAGE_KEYS.HIGH_CONTRAST, String(appState.highContrast));
+}
 
-    if (window.lucide) {
-        window.lucide.createIcons();
-    }
-});
+function applyFontSize() {
+  const htmlElement = document.documentElement;
+  if (!htmlElement) {
+    return;
+  }
+
+  const nextSize = appState.baseFontSize + appState.fontSizeLevel;
+  htmlElement.style.fontSize = `${nextSize}px`;
+}
+
+function applyContrastMode() {
+  const body = safeGetElementById('main-body') || document.body;
+  if (!body) {
+    return;
+  }
+
+  body.classList.toggle('high-contrast', appState.highContrast);
+}
+
+function showToast(title, message, isError = false) {
+  const toast = safeGetElementById('notification-toast');
+  const toastTitle = safeGetElementById('toast-title');
+  const toastMessage = safeGetElementById('toast-message');
+
+  if (!toast || !toastTitle || !toastMessage) {
+    return;
+  }
+
+  toastTitle.textContent = title;
+  toastMessage.textContent = message;
+
+  toast.classList.remove('translate-x-full');
+  toast.classList.add('translate-x-0');
+  toast.classList.toggle('border-red-500', isError);
+  toast.classList.toggle('border-green-500', !isError);
+
+  if (appState.toastTimerId) {
+    window.clearTimeout(appState.toastTimerId);
+  }
+
+  appState.toastTimerId = window.setTimeout(() => {
+    hideToast();
+  }, 3500);
+}
+
+function hideToast() {
+  const toast = safeGetElementById('notification-toast');
+  if (!toast) {
+    return;
+  }
+
+  toast.classList.remove('translate-x-0');
+  toast.classList.add('translate-x-full');
+}
+
+function lockBodyScroll(shouldLock) {
+  if (!document.body) {
+    return;
+  }
+
+  document.body.style.overflow = shouldLock ? 'hidden' : '';
+}
+
+function setAuthUI() {
+  const authButtons = safeGetElementById('auth-buttons');
+  const userProfile = safeGetElementById('user-profile');
+  const userName = safeGetElementById('user-name');
+
+  if (userName) {
+    userName.textContent = appState.currentUser?.name || '';
+  }
+
+  if (authButtons) {
+    authButtons.classList.toggle('hidden', Boolean(appState.currentUser));
+    authButtons.classList.toggle('flex', !appState.currentUser);
+  }
+
+  if (userProfile) {
+    userProfile.classList.toggle('hidden', !appState.currentUser);
+    userProfile.classList.toggle('flex', Boolean(appState.currentUser));
+  }
+}
+
+function setModalVisibility(modalId, isOpen) {
+  const modal = safeGetElementById(modalId);
+  if (!modal) {
+    return;
+  }
+
+  modal.classList.toggle('hidden', !isOpen);
+  modal.setAttribute('aria-hidden', String(!isOpen));
+}
+
+function addChatMessage(content, sender = 'user') {
+  const chatMessages = safeGetElementById('chat-messages');
+  if (!chatMessages) {
+    return;
+  }
+
+  const wrapper = document.createElement('div');
+  wrapper.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
+
+  const bubble = document.createElement('div');
+  bubble.className = sender === 'user'
+    ? 'bg-blue-700 text-white rounded-xl rounded-br-sm px-3 py-2 max-w-[80%] text-sm'
+    : 'bg-white text-slate-700 rounded-xl rounded-bl-sm border border-slate-200 px-3 py-2 max-w-[80%] text-sm';
+  bubble.textContent = content;
+
+  wrapper.appendChild(bubble);
+  chatMessages.appendChild(wrapper);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function getChatReply(message) {
+  const value = message.toLowerCase();
+  if (value.includes('apply') || value.includes('application')) {
+    return 'You can submit an application by clicking "Apply for Grant". Make sure your plan section is detailed and at least 100 words.';
+  }
+  if (value.includes('eligib')) {
+    return 'Eligibility depends on your residency and business intent. Please review the Program Details and FAQ sections for requirements.';
+  }
+  if (value.includes('login') || value.includes('account')) {
+    return 'Use the Sign In button at the top right to access your account and track application status.';
+  }
+  return 'Thanks for contacting GovTrade support. We received your message and our team can follow up via the contact form if needed.';
+}
 
 function toggleMobileMenu() {
-    const menu = document.getElementById('mobile-menu');
-    if (!menu) return;
-    menu.classList.toggle('hidden');
+  const menu = safeGetElementById('mobile-menu');
+  const icon = safeGetElementById('menu-icon');
+
+  if (!menu) {
+    return;
+  }
+
+  const isHidden = menu.classList.contains('hidden');
+  menu.classList.toggle('hidden', !isHidden);
+
+  if (icon) {
+    icon.setAttribute('data-lucide', isHidden ? 'x' : 'menu');
+    if (window.lucide?.createIcons) {
+      window.lucide.createIcons();
+    }
+  }
 }
 
 function toggleContrast() {
-    document.body.classList.toggle('high-contrast');
-    localStorage.setItem('highContrast', document.body.classList.contains('high-contrast'));
+  appState.highContrast = !appState.highContrast;
+  applyContrastMode();
+  persistPreferences();
+  showToast('Display Updated', appState.highContrast ? 'High contrast mode enabled.' : 'High contrast mode disabled.');
 }
 
-function adjustFontSize(direction) {
-    fontSizeLevel = Math.max(-2, Math.min(3, fontSizeLevel + direction));
-    document.documentElement.style.fontSize = `${baseFontSize + fontSizeLevel}px`;
-    localStorage.setItem('fontSizeLevel', fontSizeLevel);
-}
+function adjustFontSize(delta) {
+  const parsedDelta = Number(delta) || 0;
+  const nextLevel = appState.fontSizeLevel + parsedDelta;
+  appState.fontSizeLevel = Math.max(appState.minFontSizeLevel, Math.min(appState.maxFontSizeLevel, nextLevel));
 
-function loadSavedPreferences() {
-    const highContrast = localStorage.getItem('highContrast') === 'true';
-    fontSizeLevel = Number(localStorage.getItem('fontSizeLevel') || 0);
-
-    if (highContrast) {
-        document.body.classList.add('high-contrast');
-    }
-
-    document.documentElement.style.fontSize = `${baseFontSize + fontSizeLevel}px`;
-}
-
-function openApplyModal() {
-    const modal = document.getElementById('apply-modal');
-    if (!modal) {
-        window.location.href = 'apply.html';
-        return;
-    }
-    modal.classList.remove('hidden');
-}
-
-function closeApplyModal() {
-    const modal = document.getElementById('apply-modal');
-    if (modal) modal.classList.add('hidden');
-}
-
-function openLoginModal() {
-    const modal = document.getElementById('login-modal');
-    if (!modal) {
-        window.location.href = 'account.html';
-        return;
-    }
-    modal.classList.remove('hidden');
-}
-
-function closeLoginModal() {
-    const modal = document.getElementById('login-modal');
-    if (modal) modal.classList.add('hidden');
-}
-
-function handleApplicationSubmit(event) {
-    event.preventDefault();
-    showToast('Application Submitted', 'Your application was received and is now under review.');
-    closeApplyModal();
-    const form = event.target;
-    if (form && form.reset) form.reset();
-}
-
-function handleContactSubmit(event) {
-    event.preventDefault();
-    showToast('Message Sent', 'Our support team will reply within 1-2 business days.');
-    const form = event.target;
-    if (form && form.reset) form.reset();
-}
-
-function handleLogin(event) {
-    event.preventDefault();
-    const emailInput = document.getElementById('login-email');
-    const email = emailInput ? emailInput.value : 'applicant@example.gov';
-    currentUser = { name: email.split('@')[0], email };
-    localStorage.setItem('govtradeUser', JSON.stringify(currentUser));
-    checkAuthStatus();
-    showToast('Signed In', `Welcome back, ${currentUser.name}.`);
-    closeLoginModal();
+  applyFontSize();
+  persistPreferences();
+  showToast('Display Updated', `Font size changed to ${appState.baseFontSize + appState.fontSizeLevel}px.`);
 }
 
 function checkAuthStatus() {
-    const cached = localStorage.getItem('govtradeUser');
-    currentUser = cached ? JSON.parse(cached) : null;
-
-    const authButtons = document.getElementById('auth-buttons');
-    const userProfile = document.getElementById('user-profile');
-    const userName = document.getElementById('user-name');
-
-    if (!authButtons || !userProfile) return;
-
-    if (currentUser) {
-        authButtons.classList.add('hidden');
-        userProfile.classList.remove('hidden');
-        userProfile.classList.add('flex');
-        if (userName) userName.textContent = `Hello, ${currentUser.name}`;
-    } else {
-        authButtons.classList.remove('hidden');
-        userProfile.classList.add('hidden');
-        userProfile.classList.remove('flex');
+  const storedUser = localStorage.getItem(STORAGE_KEYS.USER);
+  if (storedUser) {
+    try {
+      appState.currentUser = JSON.parse(storedUser);
+    } catch (_error) {
+      appState.currentUser = null;
+      localStorage.removeItem(STORAGE_KEYS.USER);
     }
+  }
+
+  setAuthUI();
+}
+
+function loadSavedPreferences() {
+  const savedLevel = Number(localStorage.getItem(STORAGE_KEYS.FONT_SIZE_LEVEL));
+  if (!Number.isNaN(savedLevel)) {
+    appState.fontSizeLevel = Math.max(appState.minFontSizeLevel, Math.min(appState.maxFontSizeLevel, savedLevel));
+  }
+
+  appState.highContrast = localStorage.getItem(STORAGE_KEYS.HIGH_CONTRAST) === 'true';
+
+  applyFontSize();
+  applyContrastMode();
+}
+
+function openApplyModal() {
+  setModalVisibility('apply-modal', true);
+  lockBodyScroll(true);
+}
+
+function closeApplyModal() {
+  setModalVisibility('apply-modal', false);
+  const loginModal = safeGetElementById('login-modal');
+  if (!loginModal || loginModal.classList.contains('hidden')) {
+    lockBodyScroll(false);
+  }
+}
+
+function openLoginModal() {
+  setModalVisibility('login-modal', true);
+  lockBodyScroll(true);
+}
+
+function closeLoginModal() {
+  setModalVisibility('login-modal', false);
+  const applyModal = safeGetElementById('apply-modal');
+  if (!applyModal || applyModal.classList.contains('hidden')) {
+    lockBodyScroll(false);
+  }
+}
+
+function handleApplicationSubmit(event) {
+  event?.preventDefault?.();
+
+  const form = safeGetElementById('grant-application-form');
+  if (!form) {
+    return;
+  }
+
+  const planValue = safeGetElementById('app-plan')?.value?.trim() || '';
+  if (planValue.split(/\s+/).filter(Boolean).length < 20) {
+    showToast('Application Incomplete', 'Please provide a more detailed trading/marketing plan before submitting.', true);
+    return;
+  }
+
+  form.reset();
+  closeApplyModal();
+  showToast('Application Submitted', 'Your grant application has been received for review.');
+}
+
+function handleLogin(event) {
+  event?.preventDefault?.();
+
+  const email = safeGetElementById('login-email')?.value?.trim() || '';
+  const password = safeGetElementById('login-password')?.value || '';
+
+  if (!email || !password) {
+    showToast('Sign In Failed', 'Please enter both email and password.', true);
+    return;
+  }
+
+  const defaultName = email.split('@')[0] || 'Applicant';
+  appState.currentUser = { name: defaultName, email };
+  localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(appState.currentUser));
+
+  setAuthUI();
+  closeLoginModal();
+  showToast('Welcome Back', `Signed in as ${appState.currentUser.name}.`);
 }
 
 function logout() {
-    localStorage.removeItem('govtradeUser');
-    currentUser = null;
-    checkAuthStatus();
-    showToast('Signed Out', 'You have been signed out successfully.');
+  appState.currentUser = null;
+  localStorage.removeItem(STORAGE_KEYS.USER);
+  setAuthUI();
+  showToast('Signed Out', 'You have been logged out successfully.');
 }
 
-function renderFaqIfPresent() {
-    const container = document.getElementById('faq-container');
-    if (!container) return;
+function toggleChat() {
+  const chatWindow = safeGetElementById('chat-window');
+  const chatButton = safeGetElementById('chat-button');
 
-    container.innerHTML = faqItems.map((item, index) => `
-        <details class="bg-white rounded-xl border border-slate-200 p-5" ${index === 0 ? 'open' : ''}>
-            <summary class="font-semibold text-slate-900 cursor-pointer">${item.question}</summary>
-            <p class="text-slate-600 mt-3">${item.answer}</p>
-        </details>
-    `).join('');
+  if (!chatWindow) {
+    return;
+  }
+
+  appState.chatOpen = !appState.chatOpen;
+  chatWindow.classList.toggle('hidden', !appState.chatOpen);
+
+  if (chatButton) {
+    chatButton.setAttribute('aria-label', appState.chatOpen ? 'Close live chat' : 'Open live chat');
+  }
 }
 
-function showToast(title, message) {
-    const toast = document.getElementById('notification-toast');
-    if (!toast) return;
+function sendChatMessage(event) {
+  event?.preventDefault?.();
 
-    const titleElement = document.getElementById('toast-title');
-    const messageElement = document.getElementById('toast-message');
-    if (titleElement) titleElement.textContent = title;
-    if (messageElement) messageElement.textContent = message;
+  const input = safeGetElementById('chat-input');
+  if (!input) {
+    return;
+  }
 
-    toast.classList.remove('translate-x-full');
-    setTimeout(() => toast.classList.add('translate-x-full'), 3000);
+  const message = input.value.trim();
+  if (!message) {
+    return;
+  }
+
+  addChatMessage(message, 'user');
+  input.value = '';
+
+  window.setTimeout(() => {
+    addChatMessage(getChatReply(message), 'assistant');
+  }, 300);
 }
+
+function handleContactSubmit(event) {
+  event?.preventDefault?.();
+
+  const form = safeGetElementById('contact-form');
+  if (!form) {
+    return;
+  }
+
+  form.reset();
+  showToast('Message Sent', 'Thank you for contacting us. Our team will reply shortly.');
+}
+
+function switchToRegister() {
+  showToast('Registration', 'Account registration will be available soon. Please contact support for immediate assistance.');
+}
+
+function initializeApp() {
+  checkAuthStatus();
+  loadSavedPreferences();
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') {
+      return;
+    }
+
+    closeApplyModal();
+    closeLoginModal();
+
+    if (appState.chatOpen) {
+      toggleChat();
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', initializeApp);
