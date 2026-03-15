@@ -1,5 +1,4 @@
 // State Management
-let currentUser = null;
 let chatOpen = false;
 let fontSizeLevel = 0;
 const baseFontSize = 16;
@@ -422,116 +421,6 @@ async function handleContactSubmit(event) {
     }, 'Sending...');
 }
 
-async function handleLogin(event) {
-    event.preventDefault();
-
-    const form = event.target;
-    const email = document.getElementById('login-email')?.value.trim() || '';
-    const password = document.getElementById('login-password')?.value || '';
-
-    if (!isValidEmail(email)) {
-        showToast('Validation error', 'Please enter a valid login email address.', 'error');
-        return;
-    }
-
-    if (password.length < 8) {
-        showToast('Validation error', 'Password must contain at least 8 characters.', 'error');
-        return;
-    }
-
-    const submitButton = form.querySelector('button[type="submit"]');
-    await withLoadingState(submitButton, async () => {
-        const response = await postJson(API_CONTRACT.authLogin.path, { email, password });
-        if (!response.ok || !response.data?.user) {
-            throw new Error(response.error || 'Sign-in failed. Please verify your credentials.');
-        }
-
-        setCurrentUser(response.data.user);
-        closeLoginModal();
-        form.reset();
-        showToast('Signed in', 'You are now signed in to your GovTrade account.', 'success');
-    }, 'Signing in...');
-}
-
-async function logout() {
-    try {
-        await postJson(API_CONTRACT.authLogout.path, {});
-    } catch {
-        // Logout endpoint is optional. Continue local logout regardless.
-    }
-    clearCurrentUser();
-    showToast('Signed out', 'Your session has been closed.', 'success');
-}
-
-function switchToRegister() {
-    showToast('Registration', 'Account registration is not yet available in this preview.', 'info');
-}
-
-function checkAuthStatus() {
-    try {
-        const raw = localStorage.getItem(SESSION_STORAGE_KEY);
-        if (!raw) {
-            renderAuthState();
-            return;
-        }
-
-        const sessionMeta = JSON.parse(raw);
-        if (sessionMeta?.name) {
-            currentUser = {
-                name: sessionMeta.name,
-                email: sessionMeta.email || '',
-            };
-        }
-    } catch {
-        currentUser = null;
-    }
-    renderAuthState();
-}
-
-function setCurrentUser(user) {
-    currentUser = {
-        name: user.name || 'GovTrade User',
-        email: user.email || '',
-    };
-
-    // Persist only non-sensitive display metadata.
-    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({
-        name: currentUser.name,
-        email: currentUser.email,
-    }));
-
-    renderAuthState();
-}
-
-function clearCurrentUser() {
-    currentUser = null;
-    localStorage.removeItem(SESSION_STORAGE_KEY);
-    renderAuthState();
-}
-
-function renderAuthState() {
-    const authButtons = document.getElementById('auth-buttons');
-    const userProfile = document.getElementById('user-profile');
-    const userName = document.getElementById('user-name');
-
-    if (!authButtons || !userProfile || !userName) {
-        return;
-    }
-
-    if (currentUser) {
-        authButtons.classList.add('hidden');
-        userProfile.classList.remove('hidden');
-        userProfile.classList.add('flex');
-        userName.textContent = currentUser.name;
-    } else {
-        authButtons.classList.remove('hidden');
-        authButtons.classList.add('flex');
-        userProfile.classList.add('hidden');
-        userProfile.classList.remove('flex');
-        userName.textContent = '';
-    }
-}
-
 async function postJson(path, payload) {
     if (MOCK_MODE) {
         return mockPost(path, payload);
@@ -748,63 +637,6 @@ function closeLoginModal() {
     restoreFocus();
 }
 
-// Auth
-function checkAuthStatus() {
-    const saved = localStorage.getItem('govtradeUser');
-    if (!saved) return;
-
-    try {
-        currentUser = JSON.parse(saved);
-        updateAuthUI();
-    } catch {
-        localStorage.removeItem('govtradeUser');
-    }
-}
-
-function updateAuthUI() {
-    const authButtons = document.getElementById('auth-buttons');
-    const userProfile = document.getElementById('user-profile');
-    const userName = document.getElementById('user-name');
-
-    if (currentUser) {
-        authButtons.classList.add('hidden');
-        userProfile.classList.remove('hidden');
-        userProfile.classList.add('flex');
-        userName.textContent = `Welcome, ${currentUser.name}`;
-    } else {
-        authButtons.classList.remove('hidden');
-        userProfile.classList.add('hidden');
-        userProfile.classList.remove('flex');
-        userName.textContent = '';
-    }
-}
-
-function handleLogin(event) {
-    event.preventDefault();
-    const email = document.getElementById('login-email').value.trim();
-    const user = {
-        name: email.split('@')[0] || 'Citizen',
-        email
-    };
-    currentUser = user;
-    localStorage.setItem('govtradeUser', JSON.stringify(user));
-    updateAuthUI();
-    closeLoginModal();
-    showToast('Signed In', 'You have successfully signed in to your account.');
-}
-
-function logout() {
-    currentUser = null;
-    localStorage.removeItem('govtradeUser');
-    updateAuthUI();
-    showToast('Signed Out', 'You have been logged out.');
-}
-
-function switchToRegister() {
-    showToast('Registration', 'Registration is coming soon. Please check back later.');
-    return false;
-}
-
 // Form Handlers
 function handleApplicationSubmit(event) {
     event.preventDefault();
@@ -906,7 +738,6 @@ function escapeHtml(unsafe) {
 }
 // Centralized App State
 const STORAGE_KEYS = {
-  USER: 'govtrade.user',
   FONT_SIZE_LEVEL: 'govtrade.fontSizeLevel',
   HIGH_CONTRAST: 'govtrade.highContrast',
 };
@@ -994,7 +825,7 @@ function lockBodyScroll(shouldLock) {
   document.body.style.overflow = shouldLock ? 'hidden' : '';
 }
 
-function setAuthUI() {
+function renderAuthState() {
   const authButtons = safeGetElementById('auth-buttons');
   const userProfile = safeGetElementById('user-profile');
   const userName = safeGetElementById('user-name');
@@ -1012,6 +843,21 @@ function setAuthUI() {
     userProfile.classList.toggle('hidden', !appState.currentUser);
     userProfile.classList.toggle('flex', Boolean(appState.currentUser));
   }
+}
+
+function setCurrentUser(user) {
+  appState.currentUser = {
+    name: user?.name || 'Applicant',
+    email: user?.email || '',
+  };
+  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(appState.currentUser));
+  renderAuthState();
+}
+
+function clearCurrentUser() {
+  appState.currentUser = null;
+  localStorage.removeItem(SESSION_STORAGE_KEY);
+  renderAuthState();
 }
 
 function setModalVisibility(modalId, isOpen) {
@@ -1095,17 +941,20 @@ function adjustFontSize(delta) {
 }
 
 function checkAuthStatus() {
-  const storedUser = localStorage.getItem(STORAGE_KEYS.USER);
-  if (storedUser) {
+  const storedSession = localStorage.getItem(SESSION_STORAGE_KEY);
+
+  if (storedSession) {
     try {
-      appState.currentUser = JSON.parse(storedUser);
+      appState.currentUser = JSON.parse(storedSession);
     } catch (_error) {
-      appState.currentUser = null;
-      localStorage.removeItem(STORAGE_KEYS.USER);
+      clearCurrentUser();
+      return;
     }
+  } else {
+    appState.currentUser = null;
   }
 
-  setAuthUI();
+  renderAuthState();
 }
 
 function loadSavedPreferences() {
@@ -1177,18 +1026,14 @@ function handleLogin(event) {
   }
 
   const defaultName = email.split('@')[0] || 'Applicant';
-  appState.currentUser = { name: defaultName, email };
-  localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(appState.currentUser));
+  setCurrentUser({ name: defaultName, email });
 
-  setAuthUI();
   closeLoginModal();
   showToast('Welcome Back', `Signed in as ${appState.currentUser.name}.`);
 }
 
 function logout() {
-  appState.currentUser = null;
-  localStorage.removeItem(STORAGE_KEYS.USER);
-  setAuthUI();
+  clearCurrentUser();
   showToast('Signed Out', 'You have been logged out successfully.');
 }
 
