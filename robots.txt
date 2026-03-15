@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://govtrade-grant-portal.vercel.app/sitemap.xml
