@@ -4,6 +4,12 @@ let fontSizeLevel = 0;
 const baseFontSize = 16;
 const SESSION_STORAGE_KEY = 'govtrade.sessionMeta';
 const PREF_STORAGE_KEY = 'govtrade.preferences';
+let lastFocusedElement = null;
+
+const modalFocusState = {
+    activeModal: null,
+    cleanup: null,
+};
 
 const API_CONTRACT = {
     applications: {
@@ -43,12 +49,6 @@ const MOCK_MODE = (() => {
     }
     return !API_BASE_URL;
 })();
-let lastFocusedElement = null;
-const modalFocusState = {
-    activeModal: null,
-    cleanup: null
-};
-let toastTimeout;
 
 const FOCUSABLE_SELECTOR = [
     'a[href]',
@@ -61,7 +61,7 @@ const FOCUSABLE_SELECTOR = [
     'object',
     'embed',
     '[contenteditable]',
-    '[tabindex]:not([tabindex="-1"])'
+    '[tabindex]:not([tabindex="-1"])',
 ].join(',');
 
 // Initialize
@@ -69,27 +69,28 @@ document.addEventListener('DOMContentLoaded', () => {
     checkAuthStatus();
     loadSavedPreferences();
     hydrateInputFormatters();
-
-    // Close modals on Escape key
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            closeApplyModal();
-            closeLoginModal();
     syncA11yState();
 
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            if (!document.getElementById('apply-modal').classList.contains('hidden')) {
-                closeApplyModal();
-                return;
-            }
-            if (!document.getElementById('login-modal').classList.contains('hidden')) {
-                closeLoginModal();
-                return;
-            }
-            if (chatOpen) {
-                toggleChat();
-            }
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') {
+            return;
+        }
+
+        const applyModalOpen = !document.getElementById('apply-modal')?.classList.contains('hidden');
+        const loginModalOpen = !document.getElementById('login-modal')?.classList.contains('hidden');
+
+        if (applyModalOpen) {
+            closeApplyModal();
+            return;
+        }
+
+        if (loginModalOpen) {
+            closeLoginModal();
+            return;
+        }
+
+        if (chatOpen) {
+            toggleChat();
         }
     });
 });
@@ -114,6 +115,7 @@ function hydrateInputFormatters() {
                 ssnInput.value = '';
                 return;
             }
+
             const parts = [];
             if (digits.length <= 3) {
                 parts.push(digits);
@@ -125,6 +127,8 @@ function hydrateInputFormatters() {
             ssnInput.value = parts.join('-');
         });
     }
+}
+
 function syncA11yState() {
     const menu = document.getElementById('mobile-menu');
     const menuToggle = document.getElementById('mobile-menu-toggle');
@@ -140,20 +144,27 @@ function syncA11yState() {
     setHidden(chatWindow, chatWindow ? chatWindow.classList.contains('hidden') : true);
     setHidden(applyModal, applyModal ? applyModal.classList.contains('hidden') : true);
     setHidden(loginModal, loginModal ? loginModal.classList.contains('hidden') : true);
-    setHidden(toast, toast ? toast.classList.contains('hidden') : true);
+    setHidden(toast, toast ? toast.classList.contains('translate-x-full') : true);
 }
 
 function setExpanded(el, expanded) {
-    if (el) el.setAttribute('aria-expanded', String(Boolean(expanded)));
+    if (el) {
+        el.setAttribute('aria-expanded', String(Boolean(expanded)));
+    }
 }
 
 function setHidden(el, hidden) {
-    if (el) el.setAttribute('aria-hidden', String(Boolean(hidden)));
+    if (el) {
+        el.setAttribute('aria-hidden', String(Boolean(hidden)));
+    }
 }
 
 function announceLive(message) {
     const liveRegion = document.getElementById('live-region');
-    if (!liveRegion) return;
+    if (!liveRegion) {
+        return;
+    }
+
     liveRegion.textContent = '';
     window.setTimeout(() => {
         liveRegion.textContent = message;
@@ -161,7 +172,10 @@ function announceLive(message) {
 }
 
 function getFocusableElements(container) {
-    if (!container) return [];
+    if (!container) {
+        return [];
+    }
+
     return Array.from(container.querySelectorAll(FOCUSABLE_SELECTOR)).filter((element) => {
         const isHidden = element.offsetParent === null && getComputedStyle(element).position !== 'fixed';
         return !isHidden;
@@ -169,16 +183,21 @@ function getFocusableElements(container) {
 }
 
 function trapFocus(modal) {
-    if (!modal) return;
+    if (!modal) {
+        return;
+    }
 
     releaseFocusTrap();
     modalFocusState.activeModal = modal;
+
     const focusable = getFocusableElements(modal);
     const firstElement = focusable[0] || modal;
     const lastElement = focusable[focusable.length - 1] || modal;
 
     const onKeyDown = (event) => {
-        if (event.key !== 'Tab') return;
+        if (event.key !== 'Tab') {
+            return;
+        }
 
         const currentFocusable = getFocusableElements(modal);
         const first = currentFocusable[0] || firstElement;
@@ -220,44 +239,93 @@ function restoreFocus() {
 function toggleMobileMenu() {
     const menu = document.getElementById('mobile-menu');
     const icon = document.getElementById('menu-icon');
+    const toggle = document.getElementById('mobile-menu-toggle');
     if (!menu || !icon) {
         return;
     }
 
-    menu.classList.toggle('hidden');
-    icon.setAttribute('data-lucide', menu.classList.contains('hidden') ? 'menu' : 'x');
+    const expanded = menu.classList.toggle('hidden') === false;
+    icon.setAttribute('data-lucide', expanded ? 'x' : 'menu');
+    setExpanded(toggle, expanded);
+    setHidden(menu, !expanded);
+
     if (window.lucide?.createIcons) {
         window.lucide.createIcons();
     }
 }
 
 function openApplyModal() {
-    document.getElementById('apply-modal')?.classList.remove('hidden');
+    const modal = document.getElementById('apply-modal');
+    if (!modal) {
+        return;
+    }
+
+    lastFocusedElement = document.activeElement;
+    modal.classList.remove('hidden');
+    setHidden(modal, false);
+    trapFocus(modal);
 }
 
 function closeApplyModal() {
-    document.getElementById('apply-modal')?.classList.add('hidden');
+    const modal = document.getElementById('apply-modal');
+    if (!modal || modal.classList.contains('hidden')) {
+        return;
+    }
+
+    modal.classList.add('hidden');
+    setHidden(modal, true);
+    releaseFocusTrap();
+    restoreFocus();
 }
 
 function openLoginModal() {
-    document.getElementById('login-modal')?.classList.remove('hidden');
+    const modal = document.getElementById('login-modal');
+    if (!modal) {
+        return;
+    }
+
+    lastFocusedElement = document.activeElement;
+    modal.classList.remove('hidden');
+    setHidden(modal, false);
+    trapFocus(modal);
 }
 
 function closeLoginModal() {
-    document.getElementById('login-modal')?.classList.add('hidden');
+    const modal = document.getElementById('login-modal');
+    if (!modal || modal.classList.contains('hidden')) {
+        return;
+    }
+
+    modal.classList.add('hidden');
+    setHidden(modal, true);
+    releaseFocusTrap();
+    restoreFocus();
 }
 
 function toggleChat() {
     const chatWindow = document.getElementById('chat-window');
+    const chatButton = document.getElementById('chat-button');
     const chatLabel = document.getElementById('chat-button-label');
+
     if (!chatWindow) {
         return;
     }
 
     chatOpen = !chatOpen;
     chatWindow.classList.toggle('hidden', !chatOpen);
+    setHidden(chatWindow, !chatOpen);
+    setExpanded(chatButton, chatOpen);
+
     if (chatLabel) {
         chatLabel.textContent = chatOpen ? 'Close Chat' : 'Live Support';
+    }
+
+    if (chatOpen) {
+        document.getElementById('chat-input')?.focus();
+        announceLive('Live chat opened.');
+    } else {
+        chatButton?.focus();
+        announceLive('Live chat closed.');
     }
 }
 
@@ -283,7 +351,7 @@ function sendChatMessage(event) {
     botBubble.className = 'chat-message bg-white border border-slate-200 rounded-lg p-3 mr-10';
     botBubble.innerHTML = '<p class="text-sm text-slate-700">Thanks for your message. A grants specialist will follow up shortly.</p>';
 
-    setTimeout(() => {
+    window.setTimeout(() => {
         messages.appendChild(botBubble);
         messages.scrollTop = messages.scrollHeight;
     }, 350);
@@ -309,6 +377,7 @@ function loadSavedPreferences() {
         if (!raw) {
             return;
         }
+
         const prefs = JSON.parse(raw);
         if (prefs.highContrast) {
             document.body.classList.add('high-contrast');
@@ -416,6 +485,7 @@ async function handleContactSubmit(event) {
         if (!response.ok) {
             throw new Error(response.error || 'Unable to send your message right now.');
         }
+
         form.reset();
         showToast('Message sent', 'Thanks for contacting us. We will reply shortly.', 'success');
     }, 'Sending...');
@@ -445,7 +515,7 @@ async function postJson(path, payload) {
 
 function mockPost(path, payload) {
     return new Promise((resolve) => {
-        setTimeout(() => {
+        window.setTimeout(() => {
             if (path === API_CONTRACT.authLogin.path) {
                 resolve({
                     ok: true,
@@ -499,19 +569,26 @@ function showToast(title, message, type = 'success') {
         info: 'border-blue-500',
     }[type] || 'border-green-500';
 
-    toast.classList.remove('border-green-500', 'border-red-500', 'border-blue-500');
+    toast.classList.remove('border-green-500', 'border-red-500', 'border-blue-500', 'translate-x-full');
     toast.classList.add(borderClass);
 
     toastTitle.textContent = title;
     toastMessage.textContent = message;
-    toast.classList.remove('translate-x-full');
+    setHidden(toast, false);
+    announceLive(`${title}. ${message}`);
 
     window.clearTimeout(showToast.timeoutId);
     showToast.timeoutId = window.setTimeout(hideToast, 4000);
 }
 
 function hideToast() {
-    document.getElementById('notification-toast')?.classList.add('translate-x-full');
+    const toast = document.getElementById('notification-toast');
+    if (!toast) {
+        return;
+    }
+
+    toast.classList.add('translate-x-full');
+    setHidden(toast, true);
 }
 
 function normalizePhone(value) {
@@ -524,19 +601,17 @@ function normalizePhone(value) {
         return `+1${digits}`;
     }
 
-    if (!value.trim().startsWith('+')) {
-        return `+${digits}`;
-    }
-
     return `+${digits}`;
 }
 
 function formatPhone(normalized) {
     const digits = normalized.replace(/\D/g, '');
     const local = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+
     if (local.length === 10) {
         return `(${local.slice(0, 3)}) ${local.slice(3, 6)}-${local.slice(6)}`;
     }
+
     return normalized;
 }
 
@@ -545,7 +620,7 @@ function tokenizeSsn(value) {
     if (digits.length !== 9) {
         return null;
     }
-    // Demo-only tokenization placeholder for static preview.
+
     const reversed = digits.split('').reverse().join('');
     return `tok_ssn_${btoa(reversed).replace(/=/g, '')}`;
 }
