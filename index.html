@@ -25,6 +25,18 @@
             color: black !important;
             border-color: black !important;
         }
+        .high-contrast button,
+        .high-contrast [role="button"] {
+            border-width: 2px !important;
+            font-weight: 700 !important;
+        }
+        .high-contrast a {
+            text-decoration: underline !important;
+        }
+        .high-contrast :focus-visible {
+            outline: 3px solid #000 !important;
+            outline-offset: 2px !important;
+        }
         .chat-message {
             animation: slideIn 0.3s ease-out;
         }
@@ -56,6 +68,22 @@
         }
         .skip-link:focus {
             top: 0;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+
+            .chat-message,
+            .fade-in,
+            .animate-pulse,
+            .hover\:scale-110:hover {
+                animation: none !important;
+                transform: none !important;
+            }
         }
     </style>
 </head>
@@ -128,7 +156,7 @@
 
                 <!-- Mobile menu button -->
                 <div class="md:hidden flex items-center">
-                    <button onclick="toggleMobileMenu()" class="text-slate-700 hover:text-blue-700 focus-visible p-2" aria-label="Toggle mobile menu">
+                    <button id="mobile-menu-toggle" onclick="toggleMobileMenu()" class="text-slate-700 hover:text-blue-700 focus-visible p-2" aria-label="Toggle mobile menu" aria-controls="mobile-menu" aria-expanded="false">
                         <i data-lucide="menu" class="w-6 h-6" id="menu-icon"></i>
                     </button>
                 </div>
@@ -136,7 +164,7 @@
         </div>
 
         <!-- Mobile Menu -->
-        <div id="mobile-menu" class="hidden md:hidden bg-white border-t border-slate-200">
+        <div id="mobile-menu" class="hidden md:hidden bg-white border-t border-slate-200" aria-hidden="true">
             <div class="px-4 pt-2 pb-4 space-y-2">
                 <a href="#about" class="block px-3 py-2 text-slate-700 hover:bg-blue-50 rounded-md">About</a>
                 <a href="#program" class="block px-3 py-2 text-slate-700 hover:bg-blue-50 rounded-md">Program Details</a>
@@ -371,7 +399,7 @@
                                     <div>
                                         <h4 class="font-bold text-slate-900">Trading & Profit Generation</h4>
                                         <p class="text-sm text-slate-600 mb-1">Begin trading with partner platforms</p>
-                                        <span class="text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded">Day 15+</span>
+                                        <span class="text-xs font-semibold text-green-800 bg-green-100 px-2 py-1 rounded">Day 15+</span>
                                     </div>
                                 </div>
                             </div>
@@ -482,7 +510,7 @@
                     <article class="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow border border-slate-200">
                         <img src="https://static.photos/technology/640x360/102" alt="Risk Management" class="w-full h-48 object-cover">
                         <div class="p-6">
-                            <span class="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-1 rounded">Intermediate</span>
+                            <span class="text-xs font-semibold text-amber-800 bg-amber-100 px-2 py-1 rounded">Intermediate</span>
                             <h3 class="font-bold text-lg mt-2 mb-2">Risk Management Strategies</h3>
                             <p class="text-slate-600 text-sm mb-4">Master portfolio diversification and loss prevention techniques.</p>
                             <a href="#" class="text-blue-700 font-semibold text-sm hover:underline flex items-center gap-1">
@@ -494,7 +522,7 @@
                     <article class="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow border border-slate-200">
                         <img src="https://static.photos/office/640x360/103" alt="Digital Marketing" class="w-full h-48 object-cover">
                         <div class="p-6">
-                            <span class="text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded">Business</span>
+                            <span class="text-xs font-semibold text-green-800 bg-green-100 px-2 py-1 rounded">Business</span>
                             <h3 class="font-bold text-lg mt-2 mb-2">Digital Marketing Mastery</h3>
                             <p class="text-slate-600 text-sm mb-4">Promote your trading services and build your client base online.</p>
                             <a href="#" class="text-blue-700 font-semibold text-sm hover:underline flex items-center gap-1">
@@ -783,10 +811,10 @@
             </div>
             
             <div class="border-t border-slate-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-                <p class="text-sm text-slate-500">
+                <p class="text-sm text-slate-300">
                     © 2024 Department of Digital Economy. All rights reserved.
                 </p>
-                <div class="flex items-center gap-2 text-sm text-slate-500">
+                <div class="flex items-center gap-2 text-sm text-slate-300">
                     <i data-lucide="shield-check" class="w-4 h-4"></i>
                     <span>Secured by Government Grade Encryption</span>
                 </div>
@@ -795,8 +823,8 @@
     </footer>
 
     <!-- Live Chat Widget -->
-    <div id="chat-widget" class="fixed bottom-6 right-6 z-50 hidden md:block">
-        <div id="chat-window" class="hidden bg-white rounded-2xl shadow-2xl border border-slate-200 w-96 mb-4 overflow-hidden">
+    <div id="chat-widget" class="fixed bottom-4 right-4 z-50 block">
+        <div id="chat-window" class="hidden bg-white rounded-2xl shadow-2xl border border-slate-200 w-[calc(100vw-2rem)] sm:w-96 mb-3 overflow-hidden" aria-hidden="true">
             <div class="bg-blue-900 text-white p-4 flex justify-between items-center">
                 <div class="flex items-center gap-2">
                     <div class="relative">
@@ -834,14 +862,14 @@
             </div>
         </div>
         
-        <button onclick="toggleChat()" id="chat-button" class="bg-blue-700 text-white p-4 rounded-full shadow-lg hover:bg-blue-800 transition-all hover:scale-110 focus-visible flex items-center gap-2" aria-label="Open live chat">
+        <button onclick="toggleChat()" id="chat-button" class="bg-blue-700 text-white p-4 rounded-full shadow-lg hover:bg-blue-800 transition-all hover:scale-110 focus-visible flex items-center gap-2" aria-label="Open live chat" aria-controls="chat-window" aria-expanded="false">
             <i data-lucide="message-circle" class="w-6 h-6"></i>
             <span class="font-semibold hidden md:inline">Chat with Us</span>
         </button>
     </div>
 
     <!-- Application Modal -->
-    <div id="apply-modal" class="fixed inset-0 z-50 hidden overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="apply-modal-title">
+    <div id="apply-modal" class="fixed inset-0 z-50 hidden overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="apply-modal-title" aria-hidden="true">
         <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
             <div class="fixed inset-0 bg-slate-900 bg-opacity-75 transition-opacity" aria-hidden="true" onclick="closeApplyModal()"></div>
             
@@ -932,7 +960,7 @@
     </div>
 
     <!-- Login Modal -->
-    <div id="login-modal" class="fixed inset-0 z-50 hidden overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="login-modal-title">
+    <div id="login-modal" class="fixed inset-0 z-50 hidden overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="login-modal-title" aria-hidden="true">
         <div class="flex items-center justify-center min-h-screen px-4 text-center sm:block sm:p-0">
             <div class="fixed inset-0 bg-slate-900 bg-opacity-75 transition-opacity" aria-hidden="true" onclick="closeLoginModal()"></div>
             
@@ -980,7 +1008,7 @@
     </div>
 
     <!-- Notification Toast -->
-    <div id="notification-toast" class="fixed top-24 right-4 bg-white border-l-4 border-green-500 shadow-lg rounded-lg p-4 transform translate-x-full transition-transform duration-300 z-50 max-w-sm" role="alert">
+    <div id="notification-toast" class="fixed top-24 right-4 hidden bg-white border-l-4 border-green-500 shadow-lg rounded-lg p-4 transform translate-x-full transition-transform duration-300 z-50 max-w-sm" role="status" aria-live="polite" aria-atomic="true" aria-hidden="true">
         <div class="flex items-start gap-3">
             <i data-lucide="check-circle" class="w-6 h-6 text-green-500 flex-shrink-0"></i>
             <div>
@@ -994,6 +1022,7 @@
     </div>
 
     <script src="script.js"></script>
+    <div id="live-region" class="sr-only" aria-live="polite" aria-atomic="true"></div>
     <script>
         // Initialize Lucide icons
         lucide.createIcons();
