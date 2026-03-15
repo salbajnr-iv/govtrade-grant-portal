@@ -1,0 +1,10 @@
+{
+  "name": "GovTrade Grant Portal",
+  "short_name": "GovTrade",
+  "description": "Apply for, manage, and track GovTrade grant applications.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#1d4ed8",
+  "icons": []
+}
