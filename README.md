@@ -138,6 +138,16 @@ Terminate the active user session.
 - Sensitive form payloads (SSN, passwords, plans) are never written to `localStorage`.
 - Only session-safe display metadata is stored (`name`, `email`) to restore auth UI state on refresh.
 
+
+## Portal documentation
+
+- Flow map: [`docs/portal-flow-map.md`](docs/portal-flow-map.md)
+- Execution plan: [`docs/implementation-plan.md`](docs/implementation-plan.md)
+
+### Update cadence
+
+Update both documents after each merged PR (or at minimum once per sprint) so status and journey mapping stay in sync with production behavior.
+
 ## Quality checks
 
 Install tooling dependencies:
