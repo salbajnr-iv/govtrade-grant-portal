@@ -1,8 +1,18 @@
 {
   "cleanUrls": true,
   "trailingSlash": false,
-  "routes": [
-    { "handle": "filesystem" },
-    { "src": "/.*", "dest": "/404.html", "status": 404 }
+  "rewrites": [
+    { "source": "/", "destination": "/index.html" },
+    { "source": "/program", "destination": "/program.html" },
+    { "source": "/apply", "destination": "/apply.html" },
+    { "source": "/account", "destination": "/account.html" },
+    { "source": "/support", "destination": "/support.html" },
+    { "source": "/status", "destination": "/status.html" },
+    { "source": "/legal", "destination": "/legal.html" },
+    { "source": "/privacy", "destination": "/privacy.html" },
+    { "source": "/terms", "destination": "/terms.html" },
+    { "source": "/cookies", "destination": "/cookies.html" },
+    { "source": "/accessibility", "destination": "/accessibility.html" },
+    { "source": "/forgot-password", "destination": "/forgot-password.html" }
   ]
 }

@@ -12,6 +12,16 @@ tags:
 
 This project has been created with [DeepSite](https://deepsite.hf.co) AI Vibe Coding.
 
+
+## Canonical URL policy
+
+This project uses **clean routes** as canonical URLs (no `.html` in public links):
+
+- Canonical examples: `/`, `/apply`, `/support`, `/legal`, `/privacy`.
+- Static files remain `.html` on disk and are mapped by hosting rewrites (`_redirects` and `vercel.json`).
+- Legacy `.html` paths are redirected to clean canonical routes.
+- `sitemap.xml` lists only canonical clean-route URLs, once per page.
+
 ## API configuration
 
 The front-end supports two runtime modes:

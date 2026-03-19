@@ -1,1 +1,30 @@
+# Canonical URLs use clean routes (no .html).
+# Serve each clean route from its matching static HTML file.
+/ /index.html 200
+/program /program.html 200
+/apply /apply.html 200
+/account /account.html 200
+/support /support.html 200
+/status /status.html 200
+/legal /legal.html 200
+/privacy /privacy.html 200
+/terms /terms.html 200
+/cookies /cookies.html 200
+/accessibility /accessibility.html 200
+/forgot-password /forgot-password.html 200
+
+# Redirect explicit .html URLs to canonical clean routes.
+/index.html / 301
+/program.html /program 301
+/apply.html /apply 301
+/account.html /account 301
+/support.html /support 301
+/status.html /status 301
+/legal.html /legal 301
+/privacy.html /privacy 301
+/terms.html /terms 301
+/cookies.html /cookies 301
+/accessibility.html /accessibility 301
+/forgot-password.html /forgot-password 301
+
 /* /404.html 404
