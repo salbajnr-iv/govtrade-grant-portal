@@ -841,8 +841,6 @@ function renderStatusHandoffState() {
   }
 }
 
-async function handleApplicationSubmit(event) {
-  event.preventDefault();
 function emitTelemetryEvent(eventName, payload = {}) {
   const eventPayload = {
     event: eventName,
@@ -912,58 +910,6 @@ function renderApplicationSupportCta(state, detail = {}) {
   if (!cta || !link) {
     return;
   }
-}
-
-function buildSubmissionRequestId() {
-  if (window.crypto?.randomUUID) {
-    return window.crypto.randomUUID();
-  }
-
-  return `req_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
-}
-
-function setSubmissionState(state, detail = {}) {
-  APP.applicationSubmission.state = state;
-  const stateEl = byId('application-submit-state');
-  const actionEl = byId('application-submit-action');
-
-  if (stateEl) {
-    const message =
-      detail.message ||
-      (state === 'loading'
-        ? 'Submitting your application…'
-        : state === 'success'
-          ? 'Application submitted successfully.'
-          : state === 'idle'
-            ? 'Ready to submit.'
-            : 'There was a problem with your submission.');
-    stateEl.textContent = message;
-  }
-
-  if (actionEl) {
-    actionEl.textContent = detail.action || '';
-  }
-
-  announceLive(detail.liveMessage || detail.message || `Submission status: ${state}.`);
-}
-
-function ensureErrorNode(field) {
-  if (!field) {
-    return null;
-  }
-
-  const errorId = `${field.id}-error`;
-  let errorNode = byId(errorId);
-  if (!errorNode) {
-    errorNode = document.createElement('p');
-    errorNode.id = errorId;
-    errorNode.className = 'field-error text-sm text-red-700 mt-1';
-    errorNode.setAttribute('role', 'alert');
-    field.insertAdjacentElement('afterend', errorNode);
-  }
-
-  return errorNode;
-}
 
   const shouldShow = state === 'blocked' || state === 'retryable' || state === 'fatal';
   cta.classList.toggle('hidden', !shouldShow);
