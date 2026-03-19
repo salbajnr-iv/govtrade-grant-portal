@@ -19,6 +19,73 @@ const APP = {
   toastTimerId: null,
   lastFocusedElement: null,
   focusCleanup: null,
+  applicationSubmission: {
+    state: 'idle',
+    inFlight: false,
+    requestId: null,
+    payload: null,
+    failCount: 0,
+    lastFailureModel: null,
+    referenceId: null,
+  },
+};
+
+const APPLICATION_SCHEMA = {
+  firstName: { elementId: 'app-firstname', label: 'First name', required: true },
+  lastName: { elementId: 'app-lastname', label: 'Last name', required: true },
+  email: {
+    elementId: 'app-email',
+    label: 'Email address',
+    required: true,
+    validate: (value) =>
+      isValidEmail(value) ? null : 'Enter a valid email address (example: name@agency.gov).',
+  },
+  phone: {
+    elementId: 'app-phone',
+    label: 'Phone number',
+    required: true,
+    validate: (value) =>
+      normalizePhone(value)
+        ? null
+        : 'Enter a valid phone number with 10 to 15 digits including area code.',
+  },
+  amount: { elementId: 'app-amount', label: 'Requested amount', required: true },
+  plan: { elementId: 'app-plan', label: 'Plan description', required: true },
+  termsAccepted: {
+    elementId: 'app-terms',
+    label: 'Terms acceptance',
+    required: true,
+    type: 'checkbox',
+    validate: (value) => (value ? null : 'You must accept program terms before submitting.'),
+  },
+};
+
+const BACKEND_ERROR_MAP = {
+  DUPLICATE_SUBMISSION: {
+    state: 'blocked',
+    title: 'Submission already in progress',
+    message:
+      'This application is already processing. Wait for confirmation or retry after one minute.',
+    action: 'Wait briefly, then select Retry submission if no confirmation arrives.',
+    failureModel: 'validation',
+    retryable: true,
+  },
+  VALIDATION_ERROR: {
+    state: 'blocked',
+    title: 'Please review your information',
+    message: 'Some fields did not pass review. Update highlighted fields and submit again.',
+    action: 'Correct the flagged fields and submit again.',
+    failureModel: 'validation',
+    retryable: true,
+  },
+  AUTH_REQUIRED: {
+    state: 'fatal',
+    title: 'Session expired',
+    message: 'Your session ended before submission completed.',
+    action: 'Sign in again, then retry with the same information.',
+    failureModel: 'auth/session',
+    retryable: true,
+  },
 };
 
 const API_BASE_URL = (() => {
@@ -432,19 +499,34 @@ function mockPost(path, payload) {
         return;
       }
 
-      resolve({ ok: true, data: { received: true } });
+      if (path === API_PATHS.application) {
+        resolve({
+          ok: true,
+          status: 200,
+          data: {
+            received: true,
+            referenceId: `GT-MOCK-${Date.now().toString().slice(-6)}`,
+          },
+        });
+        return;
+      }
+
+      resolve({ ok: true, status: 200, data: { received: true } });
     }, 350);
   });
 }
 
-async function postJson(path, payload) {
+async function postJson(path, payload, options = {}) {
   if (MOCK_MODE) {
     return mockPost(path, payload);
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
     credentials: 'include',
     body: JSON.stringify(payload),
   });
@@ -452,8 +534,10 @@ async function postJson(path, payload) {
   const data = await safeJson(response);
   return {
     ok: response.ok,
+    status: response.status,
     data,
     error: data?.error || data?.message,
+    errorCode: data?.code || data?.errorCode || null,
   };
 }
 
@@ -505,77 +589,388 @@ function hydrateInputFormatters() {
   }
 }
 
+function emitTelemetryEvent(eventName, payload = {}) {
+  const eventPayload = {
+    event: eventName,
+    timestamp: new Date().toISOString(),
+    ...payload,
+  };
+
+  if (Array.isArray(window.dataLayer)) {
+    window.dataLayer.push(eventPayload);
+  }
+
+  if (window.dispatchEvent && typeof window.CustomEvent === 'function') {
+    window.dispatchEvent(new CustomEvent('govtrade:telemetry', { detail: eventPayload }));
+  }
+}
+
+function buildSubmissionRequestId() {
+  if (window.crypto?.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+
+  return `req_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
+}
+
+function setSubmissionState(state, detail = {}) {
+  APP.applicationSubmission.state = state;
+  const stateEl = byId('application-submit-state');
+  const actionEl = byId('application-submit-action');
+
+  if (stateEl) {
+    const message =
+      detail.message ||
+      (state === 'loading'
+        ? 'Submitting your application…'
+        : state === 'success'
+          ? 'Application submitted successfully.'
+          : state === 'idle'
+            ? 'Ready to submit.'
+            : 'There was a problem with your submission.');
+    stateEl.textContent = message;
+  }
+
+  if (actionEl) {
+    actionEl.textContent = detail.action || '';
+  }
+
+  announceLive(detail.liveMessage || detail.message || `Submission status: ${state}.`);
+}
+
+function ensureErrorNode(field) {
+  if (!field) {
+    return null;
+  }
+
+  const errorId = `${field.id}-error`;
+  let errorNode = byId(errorId);
+  if (!errorNode) {
+    errorNode = document.createElement('p');
+    errorNode.id = errorId;
+    errorNode.className = 'field-error text-sm text-red-700 mt-1';
+    errorNode.setAttribute('role', 'alert');
+    field.insertAdjacentElement('afterend', errorNode);
+  }
+
+  return errorNode;
+}
+
+function clearFormErrors(form) {
+  if (!form) {
+    return;
+  }
+
+  form.querySelectorAll('[aria-invalid="true"]').forEach((el) => {
+    el.setAttribute('aria-invalid', 'false');
+    el.classList.remove('border-red-600', 'ring-2', 'ring-red-200');
+  });
+
+  form.querySelectorAll('.field-error').forEach((node) => {
+    node.textContent = '';
+  });
+
+  const summary = byId('application-error-summary');
+  if (summary) {
+    summary.classList.add('hidden');
+    summary.innerHTML = '';
+  }
+}
+
+function renderFormErrors(form, errors) {
+  const summary = byId('application-error-summary');
+  if (!errors.length) {
+    if (summary) {
+      summary.classList.add('hidden');
+      summary.innerHTML = '';
+    }
+    return;
+  }
+
+  errors.forEach((error) => {
+    const field = byId(error.fieldId);
+    if (!field) {
+      return;
+    }
+
+    field.setAttribute('aria-invalid', 'true');
+    field.classList.add('border-red-600', 'ring-2', 'ring-red-200');
+    const errorNode = ensureErrorNode(field);
+    if (errorNode) {
+      errorNode.textContent = error.message;
+    }
+
+    const describedBy = field.getAttribute('aria-describedby') || '';
+    const merged = new Set(describedBy.split(' ').filter(Boolean));
+    merged.add(`${field.id}-error`);
+    field.setAttribute('aria-describedby', Array.from(merged).join(' '));
+  });
+
+  if (summary) {
+    const list = errors
+      .map(
+        (error) =>
+          `<li><a class="underline" href="#${error.fieldId}">${escapeHtml(error.label)}: ${escapeHtml(error.message)}</a></li>`
+      )
+      .join('');
+
+    summary.innerHTML = `<h3 class="font-semibold">Please fix the following before submitting:</h3><ul class="list-disc pl-5 mt-2 space-y-1">${list}</ul>`;
+    summary.classList.remove('hidden');
+    summary.focus();
+  }
+
+  byId(errors[0].fieldId)?.focus();
+}
+
+function validateApplicationForm() {
+  const errors = [];
+  const values = {};
+
+  Object.entries(APPLICATION_SCHEMA).forEach(([key, config]) => {
+    const field = byId(config.elementId);
+    if (!field) {
+      return;
+    }
+
+    const value = config.type === 'checkbox' ? Boolean(field.checked) : field.value.trim();
+    values[key] = value;
+
+    if (config.required && !value) {
+      errors.push({
+        fieldId: config.elementId,
+        label: config.label,
+        message: `${config.label} is required.`,
+      });
+      return;
+    }
+
+    if (config.validate) {
+      const message = config.validate(value);
+      if (message) {
+        errors.push({ fieldId: config.elementId, label: config.label, message });
+      }
+    }
+  });
+
+  let ssnToken = null;
+  const ssnField = byId('app-ssn');
+  if (ssnField && ssnField.value.trim()) {
+    ssnToken = tokenizeSsn(ssnField.value.trim());
+    if (!ssnToken) {
+      errors.push({
+        fieldId: 'app-ssn',
+        label: 'SSN',
+        message: 'Enter a valid SSN using exactly 9 digits.',
+      });
+    }
+  }
+
+  return {
+    errors,
+    values,
+    payload: {
+      firstName: values.firstName || '',
+      lastName: values.lastName || '',
+      email: values.email || '',
+      phone: normalizePhone(values.phone || ''),
+      ssnToken,
+      requestedAmountBracket: values.amount || '',
+      plan: values.plan || '',
+      acceptedTerms: Boolean(values.termsAccepted),
+    },
+  };
+}
+
+function classifySubmissionFailure(response) {
+  const code = response?.data?.code || response?.data?.errorCode || response?.errorCode;
+  if (code && BACKEND_ERROR_MAP[code]) {
+    return { ...BACKEND_ERROR_MAP[code], code };
+  }
+
+  if (response?.status === 401 || response?.status === 403) {
+    return {
+      state: 'fatal',
+      title: 'Authentication required',
+      message: 'Your sign-in session has expired.',
+      action: 'Sign in again and retry submission.',
+      failureModel: 'auth/session',
+      retryable: true,
+      code: 'AUTH_REQUIRED',
+    };
+  }
+
+  if (
+    response?.status === 408 ||
+    response?.status === 429 ||
+    (response?.status >= 500 && response?.status < 600)
+  ) {
+    return {
+      state: 'retryable',
+      title: 'Temporary service issue',
+      message: 'We could not reach the service in time.',
+      action: 'Use Retry submission. Your data is still available.',
+      failureModel: 'transient/network',
+      retryable: true,
+      code: 'TRANSIENT_FAILURE',
+    };
+  }
+
+  return {
+    state: 'fatal',
+    title: 'Unexpected submission error',
+    message: 'We could not complete your submission due to an unknown issue.',
+    action: 'Retry once. If this persists, contact support with your details.',
+    failureModel: 'unknown',
+    retryable: true,
+    code: 'UNKNOWN_FAILURE',
+  };
+}
+
+function setRetryButtonVisibility(visible) {
+  const retryButton = byId('application-retry-button');
+  if (!retryButton) {
+    return;
+  }
+
+  retryButton.classList.toggle('hidden', !visible);
+  retryButton.disabled = APP.applicationSubmission.inFlight;
+}
+
+async function submitApplicationPayload(form, payload, options = {}) {
+  const isRetry = Boolean(options.isRetry);
+  const requestId = buildSubmissionRequestId();
+  APP.applicationSubmission.requestId = requestId;
+  APP.applicationSubmission.payload = payload;
+  APP.applicationSubmission.inFlight = true;
+
+  setRetryButtonVisibility(false);
+  setSubmissionState('loading', {
+    message: 'Submitting your application securely…',
+    action: 'Please wait while we confirm your submission.',
+  });
+
+  emitTelemetryEvent(isRetry ? 'submit_retry' : 'submit_started', {
+    requestId,
+    attempt: APP.applicationSubmission.failCount + 1,
+    path: API_PATHS.application,
+  });
+
+  let response;
+  try {
+    response = await postJson(API_PATHS.application, payload, {
+      headers: {
+        'X-Request-ID': requestId,
+        'Idempotency-Key': requestId,
+      },
+    });
+  } catch (error) {
+    APP.applicationSubmission.inFlight = false;
+    APP.applicationSubmission.failCount += 1;
+    APP.applicationSubmission.lastFailureModel = 'transient/network';
+    setSubmissionState('retryable', {
+      message: 'Network interruption while submitting.',
+      action: 'Check your connection and retry. Your form data is preserved.',
+    });
+    emitTelemetryEvent('submit_fail', {
+      requestId,
+      errorCode: 'NETWORK_FAILURE',
+      failureModel: 'transient/network',
+      retryable: true,
+    });
+    setRetryButtonVisibility(true);
+    showToast('Network interruption', error.message || 'Please retry submission.', 'error');
+    return;
+  }
+
+  APP.applicationSubmission.inFlight = false;
+
+  if (response.ok) {
+    const referenceId =
+      response.data?.referenceId || response.data?.submissionId || `GT-${requestId.slice(0, 8)}`;
+    APP.applicationSubmission.referenceId = referenceId;
+    APP.applicationSubmission.failCount = 0;
+    APP.applicationSubmission.lastFailureModel = null;
+    setSubmissionState('success', {
+      message: `Success. Reference ID: ${referenceId}`,
+      action: 'Save this reference ID. Next steps: watch your email for review updates.',
+      liveMessage: `Application submitted successfully. Reference ID ${referenceId}.`,
+    });
+    emitTelemetryEvent('submit_success', { requestId, referenceId });
+    showToast('Application submitted', `Reference ID ${referenceId}.`, 'success');
+    form.reset();
+    clearFormErrors(form);
+    setRetryButtonVisibility(false);
+    return;
+  }
+
+  APP.applicationSubmission.failCount += 1;
+  const failure = classifySubmissionFailure(response);
+  APP.applicationSubmission.lastFailureModel = failure.failureModel;
+  setSubmissionState(failure.state, {
+    message: `${failure.title}. ${failure.message}`,
+    action: `${failure.action} Recovery path: data is preserved for retry.`,
+  });
+  emitTelemetryEvent('submit_fail', {
+    requestId,
+    errorCode: failure.code,
+    failureModel: failure.failureModel,
+    retryable: failure.retryable,
+    status: response.status || null,
+  });
+
+  setRetryButtonVisibility(failure.retryable);
+  showToast(failure.title, failure.message, failure.state === 'fatal' ? 'error' : 'info');
+}
+
 async function handleApplicationSubmit(event) {
   event.preventDefault();
 
   const form = event.target;
-  const firstName = byId('app-firstname')?.value.trim() || '';
-  const lastName = byId('app-lastname')?.value.trim() || '';
-  const email = byId('app-email')?.value.trim() || '';
-  const phoneRaw = byId('app-phone')?.value.trim() || '';
-  const ssnRaw = byId('app-ssn')?.value.trim() || '';
-  const amount = byId('app-amount')?.value || '';
-  const plan = byId('app-plan')?.value.trim() || '';
-  const termsAccepted = Boolean(byId('app-terms')?.checked ?? true);
-
-  if (!isValidEmail(email)) {
-    showToast('Validation error', 'Please enter a valid email address.', 'error');
+  if (APP.applicationSubmission.inFlight) {
     return;
   }
 
-  const normalizedPhone = normalizePhone(phoneRaw);
-  if (!normalizedPhone) {
-    showToast('Validation error', 'Please enter a valid phone number with 10-15 digits.', 'error');
+  clearFormErrors(form);
+  const { errors, payload } = validateApplicationForm();
+
+  if (errors.length) {
+    setSubmissionState('blocked', {
+      message: 'Submission blocked until validation issues are fixed.',
+      action: 'Fix the highlighted fields and submit again.',
+    });
+    renderFormErrors(form, errors);
+    emitTelemetryEvent('submit_fail', {
+      requestId: APP.applicationSubmission.requestId,
+      errorCode: 'CLIENT_VALIDATION_ERROR',
+      failureModel: 'validation',
+      retryable: true,
+    });
     return;
   }
-
-  if (!termsAccepted || !firstName || !lastName || !amount || !plan) {
-    showToast(
-      'Validation error',
-      'Please complete all required fields before submitting.',
-      'error'
-    );
-    return;
-  }
-
-  let ssnToken = null;
-  if (byId('app-ssn')) {
-    ssnToken = tokenizeSsn(ssnRaw);
-    if (!ssnToken) {
-      showToast('Validation error', 'Please enter a valid SSN using 9 digits.', 'error');
-      return;
-    }
-  }
-
-  const payload = {
-    firstName,
-    lastName,
-    email,
-    phone: normalizedPhone,
-    ssnToken,
-    requestedAmountBracket: amount,
-    plan,
-    acceptedTerms: termsAccepted,
-  };
 
   const submitButton = form.querySelector('button[type="submit"]');
   await withLoadingState(
     submitButton,
     async () => {
-      const response = await postJson(API_PATHS.application, payload);
-      if (!response.ok) {
-        throw new Error(response.error || 'Unable to submit your application right now.');
-      }
-
-      form.reset();
-      showToast(
-        'Application submitted',
-        'Your grant application has been received successfully.',
-        'success'
-      );
-      closeApplyModal();
+      await submitApplicationPayload(form, payload, { isRetry: false });
     },
     'Submitting...'
+  );
+}
+
+async function retryApplicationSubmission() {
+  const form = byId('grant-application-form');
+  if (!form || APP.applicationSubmission.inFlight || !APP.applicationSubmission.payload) {
+    return;
+  }
+
+  const submitButton = form.querySelector('button[type="submit"]');
+  await withLoadingState(
+    submitButton,
+    async () => {
+      await submitApplicationPayload(form, APP.applicationSubmission.payload, { isRetry: true });
+    },
+    'Retrying...'
   );
 }
 
@@ -719,10 +1114,58 @@ function switchToRegister() {
   );
 }
 
+function hydrateApplicationUX() {
+  const form = byId('grant-application-form');
+  const retryButton = byId('application-retry-button');
+  if (!form) {
+    return;
+  }
+
+  setSubmissionState('idle', {
+    message: 'Ready to submit.',
+    action: 'Complete all required fields, then submit your application.',
+  });
+
+  form.addEventListener('input', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement) || !target.id) {
+      return;
+    }
+
+    if (target.getAttribute('aria-invalid') === 'true') {
+      target.setAttribute('aria-invalid', 'false');
+      target.classList.remove('border-red-600', 'ring-2', 'ring-red-200');
+      const errorEl = byId(`${target.id}-error`);
+      if (errorEl) {
+        errorEl.textContent = '';
+      }
+    }
+  });
+
+  retryButton?.addEventListener('click', () => {
+    retryApplicationSubmission();
+  });
+
+  window.addEventListener('beforeunload', () => {
+    if (
+      APP.applicationSubmission.payload &&
+      APP.applicationSubmission.state !== 'success' &&
+      APP.applicationSubmission.failCount > 0
+    ) {
+      emitTelemetryEvent('submit_abandon', {
+        requestId: APP.applicationSubmission.requestId,
+        failureModel: APP.applicationSubmission.lastFailureModel || 'unknown',
+        attempts: APP.applicationSubmission.failCount,
+      });
+    }
+  });
+}
+
 function initializeApp() {
   checkAuthStatus();
   loadSavedPreferences();
   hydrateInputFormatters();
+  hydrateApplicationUX();
   syncA11yState();
 
   document.addEventListener('keydown', (event) => {
