@@ -153,6 +153,10 @@ Terminate the active user session.
 
 - Flow map: [`docs/portal-flow-map.md`](docs/portal-flow-map.md)
 - Execution plan: [`docs/implementation-plan.md`](docs/implementation-plan.md)
+- Operationalized phase plan: [`docs/planning/phase-breakdown-operationalized.md`](docs/planning/phase-breakdown-operationalized.md)
+- API contract freeze (`v0.9`): [`docs/contracts/openapi-v0.9.yaml`](docs/contracts/openapi-v0.9.yaml)
+- CTA/routing artifacts: [`docs/ux/cta-matrix.md`](docs/ux/cta-matrix.md), [`docs/ux/routing-map.md`](docs/ux/routing-map.md)
+- Form field SSOT: [`docs/data/form-field-spec.md`](docs/data/form-field-spec.md)
 
 ### Update cadence
 

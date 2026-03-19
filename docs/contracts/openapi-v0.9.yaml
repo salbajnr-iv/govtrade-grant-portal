@@ -1,0 +1,264 @@
+openapi: 3.1.0
+info:
+  title: GovTrade Grant Portal API
+  version: 0.9.0
+  summary: Frozen interface for Phase 1 to Phase 3 delivery.
+  description: |
+    Contract freeze for apply, support, auth/session, and status APIs.
+    Version 0.9 indicates bounded instability only where explicitly documented.
+servers:
+  - url: https://api.govtrade.example
+paths:
+  /api/applications:
+    post:
+      tags: [Applications]
+      summary: Submit a grant application.
+      operationId: submitApplication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplicationSubmitRequest'
+      responses:
+        '200':
+          description: Application received.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReceivedResponse'
+        '400':
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Duplicate or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/contact:
+    post:
+      tags: [Support]
+      summary: Submit support intake request.
+      operationId: submitSupportRequest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupportRequest'
+      responses:
+        '200':
+          description: Request received.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReceivedResponse'
+        '400':
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Authenticate a user and create session.
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Auth success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: End active session.
+      operationId: logout
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+      responses:
+        '200':
+          description: Session closed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+  /api/status/{applicationId}:
+    get:
+      tags: [Status]
+      summary: Fetch current application status and account-state flags.
+      operationId: getApplicationStatus
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 8
+      responses:
+        '200':
+          description: Status found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationStatusResponse'
+        '404':
+          description: Application not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    ApplicationSubmitRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - firstName
+        - lastName
+        - email
+        - phone
+        - ssnToken
+        - requestedAmountBracket
+        - plan
+        - acceptedTerms
+      properties:
+        firstName: { type: string, minLength: 1, maxLength: 100 }
+        lastName: { type: string, minLength: 1, maxLength: 100 }
+        email: { type: string, format: email }
+        phone:
+          type: string
+          pattern: '^\+?[1-9]\d{7,14}$'
+        ssnToken:
+          type: string
+          minLength: 8
+          description: Tokenized SSN; raw SSN must not be accepted.
+        requestedAmountBracket:
+          type: string
+          enum: ['0-5000', '5001-15000', '15001-30000', '30001+']
+        plan: { type: string, minLength: 20, maxLength: 5000 }
+        acceptedTerms: { type: boolean, const: true }
+    SupportRequest:
+      type: object
+      additionalProperties: false
+      required: [name, email, subject, message]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        email: { type: string, format: email }
+        subject:
+          type: string
+          enum: [eligibility, application, account, status, accessibility, legal, other]
+        message: { type: string, minLength: 10, maxLength: 4000 }
+        applicationId:
+          type: string
+          minLength: 8
+          description: Optional context for signed-in or known applicants.
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8, maxLength: 256 }
+    LoginResponse:
+      type: object
+      required: [user, session]
+      properties:
+        user:
+          type: object
+          required: [name, email]
+          properties:
+            name: { type: string }
+            email: { type: string, format: email }
+        session:
+          type: object
+          required: [expiresAt, state]
+          properties:
+            expiresAt: { type: string, format: date-time }
+            state:
+              type: string
+              enum: [active, grace_period, expired]
+    ApplicationStatusResponse:
+      type: object
+      required: [applicationId, status, accountState, updatedAt]
+      properties:
+        applicationId: { type: string }
+        status:
+          type: string
+          enum: [received, under_review, needs_info, approved, denied]
+        accountState:
+          type: object
+          required: [authenticated, sessionState]
+          properties:
+            authenticated: { type: boolean }
+            sessionState:
+              type: string
+              enum: [active, grace_period, expired]
+        updatedAt: { type: string, format: date-time }
+    ReceivedResponse:
+      type: object
+      required: [received]
+      properties:
+        received: { type: boolean, const: true }
+    OkResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok: { type: boolean, const: true }
+    ErrorResponse:
+      type: object
+      required: [code, message, category]
+      properties:
+        code:
+          type: string
+          description: Technical fallback code for support/debug mapping.
+        message:
+          type: string
+          description: User-safe display copy.
+        category:
+          type: string
+          enum: [validation, auth, conflict, rate_limit, not_found, server]
+        fieldErrors:
+          type: array
+          items:
+            type: object
+            required: [field, code]
+            properties:
+              field: { type: string }
+              code: { type: string }
+              message: { type: string }

@@ -9,22 +9,34 @@
 
 ## Phased execution checklist
 
-| Phase   | Workstream       | Task                                                                         | Status      | Owner                  | Dependency notes                                                  |
-| ------- | ---------------- | ---------------------------------------------------------------------------- | ----------- | ---------------------- | ----------------------------------------------------------------- |
-| Phase 0 | Alignment        | Confirm sitemap, page ownership, and success metrics.                        | Not started | Product + Eng          | Depends on stakeholder sign-off for scope boundaries.             |
-| Phase 0 | Alignment        | Approve journey definitions for visitor/applicant/signed-in/support/legal.   | Not started | Product + Ops          | Requires workshop outputs and legal review of policy touchpoints. |
-| Phase 1 | Foundation       | Establish documentation baseline in `docs/portal-flow-map.md` and this plan. | Done        | Portal Eng             | No upstream dependency; prerequisite for execution tracking.      |
-| Phase 1 | Foundation       | Add README references and operating cadence for updates.                     | Done        | Portal Eng             | Depends on docs baseline completion.                              |
-| Phase 2 | UX + Content     | Validate CTA copy and routing consistency across all sitemap pages.          | Not started | UX + Content           | Depends on approved sitemap and legal wording constraints.        |
-| Phase 2 | UX + Content     | Define required and optional fields for `apply.html` and support forms.      | Not started | Applications + Support | Depends on API contract and compliance requirements.              |
-| Phase 3 | Application Flow | Harden client-side validation and error states for application submission.   | Not started | Portal Eng             | Depends on Phase 2 field definitions and API error schema.        |
-| Phase 3 | Application Flow | Implement confirmation, retry, and recoverability UX for failed submissions. | Not started | Portal Eng             | Depends on back-end retry/idempotency behavior.                   |
-| Phase 4 | Auth + Account   | Finalize login/logout/session restoration behavior in `account.html`.        | Not started | Auth + Portal Eng      | Depends on auth API stability and security review.                |
-| Phase 4 | Auth + Account   | Standardize status handoff from account to `status.html`.                    | Not started | Case Mgmt + Eng        | Depends on account state model and status API capabilities.       |
-| Phase 5 | Support + Legal  | Ensure legal pages are discoverable from every critical path.                | Not started | Legal + UX             | Depends on final nav/footer structure and policy versioning.      |
-| Phase 5 | Support + Legal  | Tighten support escalation path from errors and blocked states.              | Not started | Support Ops + Eng      | Depends on support SLA definitions and contact intake schema.     |
-| Phase 6 | QA + Launch      | Run integrated QA across visitor/applicant/signed-in/support/legal journeys. | Not started | QA + Eng               | Depends on completion of Phases 2–5.                              |
-| Phase 6 | QA + Launch      | Launch readiness review and production release checklist.                    | Not started | Product + Eng + Legal  | Depends on QA pass, legal approval, and rollback plan.            |
+| Phase | Workstream | Task | Status | Owner | Dependency notes |
+| --- | --- | --- | --- | --- | --- |
+| Phase 0 | Alignment | Confirm sitemap, page ownership, and success metrics. | In progress | Product + Eng | Depends on stakeholder sign-off for scope boundaries. |
+| Phase 0 | Alignment | Approve journey definitions for visitor/applicant/signed-in/support/legal. | In progress | Product + Ops | Requires workshop outputs and legal review of policy touchpoints. |
+| Phase 1 | Foundation | Establish documentation baseline in `docs/portal-flow-map.md` and this plan. | Done | Portal Eng | No upstream dependency; prerequisite for execution tracking. |
+| Phase 1 | Foundation | Add README references and operating cadence for updates. | Done | Portal Eng | Depends on docs baseline completion. |
+| Phase 1 | Work package A | Sitemap + legal copy freeze with signed Approved Routes + Copy Constraints sheet. | In progress | Product + Legal + Eng | Requires closure of high-sensitivity wording decisions in triage. |
+| Phase 1 | Work package B | API contract freeze (`v0.9`) for apply/support/auth/status + error taxonomy. | In progress | Backend API + Frontend | Requires contract validation and changelog discipline for pre-v1.0 updates. |
+| Phase 1 | Work package C | Compliance matrix + support model (SLA/escalation/intake/ownership). | In progress | Compliance + Support Ops | Requires signed dependency doc and mitigation owner assignment. |
+| Phase 2 | UX + Content | Validate CTA copy and routing consistency across all sitemap pages. | In progress | UX + Content | Depends on approved sitemap and legal wording constraints. |
+| Phase 2 | UX + Content | Define required and optional fields for `apply.html` and support forms. | In progress | Applications + Support | Depends on API contract and compliance requirements. |
+| Phase 3 | Application Flow | Harden client-side validation and error states for application submission. | Not started | Portal Eng | Depends on Phase 2 field definitions and API error schema. |
+| Phase 3 | Application Flow | Implement confirmation, retry, and recoverability UX for failed submissions. | Not started | Portal Eng | Depends on back-end retry/idempotency behavior. |
+| Phase 4 | Auth + Account | Finalize login/logout/session restoration behavior in `account.html`. | Not started | Auth + Portal Eng | Depends on auth API stability and security review. |
+| Phase 4 | Auth + Account | Standardize status handoff from account to `status.html`. | Not started | Case Mgmt + Eng | Depends on account state model and status API capabilities. |
+| Phase 5 | Support + Legal | Ensure legal pages are discoverable from every critical path. | Not started | Legal + UX | Depends on final nav/footer structure and policy versioning. |
+| Phase 5 | Support + Legal | Tighten support escalation path from errors and blocked states. | Not started | Support Ops + Eng | Depends on support SLA definitions and contact intake schema. |
+| Phase 6 | QA + Launch | Run integrated QA across visitor/applicant/signed-in/support/legal journeys. | Not started | QA + Eng | Depends on completion of Phases 2-5. |
+| Phase 6 | QA + Launch | Launch readiness review and production release checklist. | Not started | Product + Eng + Legal | Depends on QA pass, legal approval, and rollback plan. |
+
+## Phase artifacts (new)
+
+- Operationalized plan: `docs/planning/phase-breakdown-operationalized.md`
+- API freeze contract: `docs/contracts/openapi-v0.9.yaml`
+- API changelog: `docs/contracts/changelog.md`
+- CTA matrix + copy catalog: `docs/ux/cta-matrix.md`
+- Routing + redirect matrix: `docs/ux/routing-map.md`
+- Field/validation/API mapping spec: `docs/data/form-field-spec.md`
 
 ## Dependency notes (cross-cutting)
 
