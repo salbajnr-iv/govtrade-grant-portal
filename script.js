@@ -9,6 +9,13 @@ const API_PATHS = {
   login: '/api/auth/login',
 };
 
+const SUPPORT_ESCALATION_SEVERITY = {
+  validation: 'low',
+  'auth/session': 'high',
+  'transient/network': 'medium',
+  unknown: 'high',
+};
+
 const APP = {
   chatOpen: false,
   fontSizeLevel: 0,
@@ -635,7 +642,53 @@ function setSubmissionState(state, detail = {}) {
     actionEl.textContent = detail.action || '';
   }
 
+  renderApplicationSupportCta(state, detail);
+
   announceLive(detail.liveMessage || detail.message || `Submission status: ${state}.`);
+}
+
+function buildSupportEscalationUrl(context = {}) {
+  const params = new URLSearchParams();
+  Object.entries(context).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      params.set(key, String(value));
+    }
+  });
+
+  const queryString = params.toString();
+  return queryString ? `/support?${queryString}` : '/support';
+}
+
+function renderApplicationSupportCta(state, detail = {}) {
+  const cta = byId('application-support-cta');
+  const link = byId('application-support-link');
+  if (!cta || !link) {
+    return;
+  }
+
+  const shouldShow = state === 'blocked' || state === 'retryable' || state === 'fatal';
+  cta.classList.toggle('hidden', !shouldShow);
+  if (!shouldShow) {
+    return;
+  }
+
+  const severity =
+    detail.supportSeverity ||
+    SUPPORT_ESCALATION_SEVERITY[
+      detail.failureModel || APP.applicationSubmission.lastFailureModel
+    ] ||
+    (state === 'fatal' ? 'high' : 'medium');
+  const supportUrl = buildSupportEscalationUrl({
+    source: 'apply',
+    escalation: '1',
+    severity,
+    failureModel: detail.failureModel || APP.applicationSubmission.lastFailureModel || 'unknown',
+    errorCode: detail.errorCode || '',
+    requestId: APP.applicationSubmission.requestId || '',
+    referenceId: APP.applicationSubmission.referenceId || '',
+  });
+
+  link.setAttribute('href', supportUrl);
 }
 
 function ensureErrorNode(field) {
@@ -870,6 +923,8 @@ async function submitApplicationPayload(form, payload, options = {}) {
     setSubmissionState('retryable', {
       message: 'Network interruption while submitting.',
       action: 'Check your connection and retry. Your form data is preserved.',
+      failureModel: 'transient/network',
+      errorCode: 'NETWORK_FAILURE',
     });
     emitTelemetryEvent('submit_fail', {
       requestId,
@@ -909,6 +964,8 @@ async function submitApplicationPayload(form, payload, options = {}) {
   setSubmissionState(failure.state, {
     message: `${failure.title}. ${failure.message}`,
     action: `${failure.action} Recovery path: data is preserved for retry.`,
+    failureModel: failure.failureModel,
+    errorCode: failure.code,
   });
   emitTelemetryEvent('submit_fail', {
     requestId,
@@ -937,6 +994,9 @@ async function handleApplicationSubmit(event) {
     setSubmissionState('blocked', {
       message: 'Submission blocked until validation issues are fixed.',
       action: 'Fix the highlighted fields and submit again.',
+      failureModel: 'validation',
+      errorCode: 'CLIENT_VALIDATION_ERROR',
+      supportSeverity: 'low',
     });
     renderFormErrors(form, errors);
     emitTelemetryEvent('submit_fail', {
@@ -982,6 +1042,11 @@ async function handleContactSubmit(event) {
   const email = byId('contact-email')?.value.trim() || '';
   const subject = byId('contact-subject')?.value || 'general';
   const message = byId('contact-message')?.value.trim() || '';
+  const applicationId = byId('contact-application-id')?.value.trim() || '';
+  const path = byId('contact-route')?.value.trim() || '';
+  const errorCode = byId('contact-error-code')?.value.trim() || '';
+  const requestId = byId('contact-request-id')?.value.trim() || '';
+  const severity = byId('contact-severity')?.value || 'low';
 
   if (!name || !message) {
     showToast('Validation error', 'Please provide your name and message.', 'error');
@@ -997,7 +1062,17 @@ async function handleContactSubmit(event) {
   await withLoadingState(
     submitButton,
     async () => {
-      const response = await postJson(API_PATHS.contact, { name, email, subject, message });
+      const response = await postJson(API_PATHS.contact, {
+        name,
+        email,
+        subject,
+        message,
+        applicationId,
+        path,
+        errorCode,
+        requestId,
+        severity,
+      });
       if (!response.ok) {
         throw new Error(response.error || 'Unable to send your message right now.');
       }
@@ -1007,6 +1082,34 @@ async function handleContactSubmit(event) {
     },
     'Sending...'
   );
+}
+
+function hydrateSupportPrefill() {
+  const form = byId('contact-form');
+  if (!form) {
+    return;
+  }
+
+  const query = new URLSearchParams(window.location.search);
+  const prefillMap = [
+    { query: 'name', field: 'contact-name' },
+    { query: 'email', field: 'contact-email' },
+    { query: 'subject', field: 'contact-subject' },
+    { query: 'message', field: 'contact-message' },
+    { query: 'applicationId', field: 'contact-application-id' },
+    { query: 'source', field: 'contact-route' },
+    { query: 'errorCode', field: 'contact-error-code' },
+    { query: 'requestId', field: 'contact-request-id' },
+    { query: 'severity', field: 'contact-severity' },
+  ];
+
+  prefillMap.forEach(({ query: key, field }) => {
+    const input = byId(field);
+    const value = query.get(key);
+    if (input && value) {
+      input.value = value;
+    }
+  });
 }
 
 async function handleLogin(event) {
@@ -1166,6 +1269,7 @@ function initializeApp() {
   loadSavedPreferences();
   hydrateInputFormatters();
   hydrateApplicationUX();
+  hydrateSupportPrefill();
   syncA11yState();
 
   document.addEventListener('keydown', (event) => {
