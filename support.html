@@ -1,2 +1,124 @@
-<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>GovTrade | Support</title><script src="https://cdn.tailwindcss.com"></script><script src="https://unpkg.com/lucide@latest"></script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Merriweather:wght@400;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="style.css"></head><body class="bg-slate-50" id="main-body"><a href="#main-content" class="skip-link">Skip to main content</a><div class="bg-slate-900 text-white py-2 px-4 text-sm"><div class="max-w-7xl mx-auto flex gap-4"><button onclick="toggleContrast()">High Contrast</button><button onclick="adjustFontSize(1)">A+</button><button onclick="adjustFontSize(-1)">A-</button></div></div><nav class="bg-white shadow-md"><div class="max-w-7xl mx-auto px-4 py-5 flex flex-wrap items-center justify-between gap-4"><a href="/" class="text-xl font-bold text-blue-900 serif">GovTrade Grants</a><div class="flex flex-wrap gap-x-4 gap-y-2 text-sm"><a href="/">Home</a><a href="/program">Program</a><a href="/apply">Apply</a><a href="/account">Account</a><a href="/support">Support</a><a href="/status">Status</a><a href="/legal">Legal</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/cookies">Cookies</a><a href="/accessibility">Accessibility</a></div></div></nav><main id="main-content" class="max-w-4xl mx-auto px-4 py-12"><section id="contact" class="bg-white border rounded-xl p-6"><h1 class="text-3xl font-bold serif mb-4">Support & Contact</h1><form id="contact-form" onsubmit="handleContactSubmit(event)" class="space-y-3"><input id="contact-name" required class="w-full border rounded p-2" placeholder="Name"><input id="contact-email" type="email" required class="w-full border rounded p-2" placeholder="Email"><textarea id="contact-message" required class="w-full border rounded p-2" placeholder="How can we help?"></textarea><button class="bg-blue-700 text-white px-4 py-2 rounded">Submit Ticket</button></form></section></main><footer class="bg-slate-900 text-slate-200 py-8 px-4"><div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4"><span>© 2026 GovTrade Grant Portal</span><div class="flex flex-wrap gap-x-4 gap-y-2 text-sm"><a href="/">Home</a><a href="/program">Program</a><a href="/apply">Apply</a><a href="/account">Account</a><a href="/support">Support</a><a href="/status">Status</a><a href="/legal">Legal</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/cookies">Cookies</a><a href="/accessibility">Accessibility</a></div></div></footer><div id="notification-toast" class="fixed top-24 right-4 bg-white border-l-4 border-green-500 shadow-lg rounded-lg p-4 transform translate-x-full transition-transform duration-300 z-50 max-w-sm"><h4 id="toast-title" class="font-bold">Success</h4><p id="toast-message" class="text-sm">Operation completed successfully.</p></div><script src="script.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GovTrade | Support</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Merriweather:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body class="bg-slate-50" id="main-body">
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <div class="bg-slate-900 text-white py-2 px-4 text-sm">
+      <div class="max-w-7xl mx-auto flex gap-4">
+        <button onclick="toggleContrast()">High Contrast</button
+        ><button onclick="adjustFontSize(1)">A+</button
+        ><button onclick="adjustFontSize(-1)">A-</button>
+      </div>
+    </div>
+    <nav class="bg-white shadow-md">
+      <div class="max-w-7xl mx-auto px-4 py-5 flex flex-wrap items-center justify-between gap-4">
+        <a href="/" class="text-xl font-bold text-blue-900 serif">GovTrade Grants</a>
+        <div class="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+          <a href="/">Home</a><a href="/program">Program</a><a href="/apply">Apply</a
+          ><a href="/account">Account</a><a href="/support">Support</a><a href="/status">Status</a
+          ><a href="/legal">Legal</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a
+          ><a href="/cookies">Cookies</a><a href="/accessibility">Accessibility</a>
+        </div>
+      </div>
+    </nav>
+    <main id="main-content" class="max-w-4xl mx-auto px-4 py-12">
+      <section id="contact" class="bg-white border rounded-xl p-6">
+        <h1 class="text-3xl font-bold serif mb-2">Support & Contact</h1>
+        <p class="text-sm text-slate-600 mb-4">
+          Use this form for blocked flows, account issues, legal clarity, or accessibility help. Our
+          triage team uses your context fields to avoid repeated follow-up prompts.
+        </p>
+        <form id="contact-form" onsubmit="handleContactSubmit(event)" class="space-y-3">
+          <input
+            id="contact-name"
+            required
+            class="w-full border rounded p-2"
+            placeholder="Name"
+          /><input
+            id="contact-email"
+            type="email"
+            required
+            class="w-full border rounded p-2"
+            placeholder="Email"
+          /><select id="contact-subject" class="w-full border rounded p-2">
+            <option value="general">General</option>
+            <option value="eligibility">Eligibility</option>
+            <option value="application">Application</option>
+            <option value="account">Account</option>
+            <option value="status">Status</option>
+            <option value="accessibility">Accessibility</option>
+            <option value="legal">Legal</option>
+            <option value="other">Other</option></select
+          ><textarea
+            id="contact-message"
+            required
+            class="w-full border rounded p-2"
+            placeholder="How can we help?"
+          ></textarea
+          ><input
+            id="contact-application-id"
+            class="w-full border rounded p-2"
+            placeholder="Application ID (optional)"
+          />
+          <div class="grid sm:grid-cols-2 gap-3">
+            <input
+              id="contact-route"
+              class="w-full border rounded p-2"
+              placeholder="Source route (auto-filled when available)"
+            /><input
+              id="contact-error-code"
+              class="w-full border rounded p-2"
+              placeholder="Error code (if shown)"
+            /><input
+              id="contact-request-id"
+              class="w-full border rounded p-2"
+              placeholder="Request ID (if shown)"
+            /><select id="contact-severity" class="w-full border rounded p-2">
+              <option value="low">Low severity</option>
+              <option value="medium">Medium severity</option>
+              <option value="high">High severity</option>
+              <option value="critical">Critical severity</option>
+            </select>
+          </div>
+          <p class="text-xs text-slate-500">
+            Policy set: GT-POL-2026.03 (effective March 19, 2026). Review
+            <a href="/legal" class="underline text-blue-700">legal resources</a>.
+          </p>
+          <button class="bg-blue-700 text-white px-4 py-2 rounded">Submit Ticket</button>
+        </form>
+      </section>
+    </main>
+    <footer class="bg-slate-900 text-slate-200 py-8 px-4">
+      <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+        <span>© 2026 GovTrade Grant Portal</span>
+        <div class="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+          <a href="/">Home</a><a href="/program">Program</a><a href="/apply">Apply</a
+          ><a href="/account">Account</a><a href="/support">Support</a><a href="/status">Status</a
+          ><a href="/legal">Legal</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a
+          ><a href="/cookies">Cookies</a><a href="/accessibility">Accessibility</a>
+        </div>
+      </div>
+    </footer>
+    <div
+      id="notification-toast"
+      class="fixed top-24 right-4 bg-white border-l-4 border-green-500 shadow-lg rounded-lg p-4 transform translate-x-full transition-transform duration-300 z-50 max-w-sm"
+    >
+      <h4 id="toast-title" class="font-bold">Success</h4>
+      <p id="toast-message" class="text-sm">Operation completed successfully.</p>
+    </div>
+    <script src="script.js"></script>
+  </body>
+</html>

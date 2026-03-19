@@ -1,12 +1,20 @@
 const STORAGE_KEYS = {
   session: 'govtrade.session',
   preferences: 'govtrade.preferences',
+  handoff: 'govtrade.accountStatusHandoff',
 };
 
 const API_PATHS = {
   application: '/api/applications',
   contact: '/api/contact',
   login: '/api/auth/login',
+};
+
+const SUPPORT_ESCALATION_SEVERITY = {
+  validation: 'low',
+  'auth/session': 'high',
+  'transient/network': 'medium',
+  unknown: 'high',
 };
 
 const APP = {
@@ -19,6 +27,7 @@ const APP = {
   toastTimerId: null,
   lastFocusedElement: null,
   focusCleanup: null,
+  accountReason: null,
   applicationSubmission: {
     state: 'idle',
     inFlight: false,
@@ -87,6 +96,16 @@ const BACKEND_ERROR_MAP = {
     retryable: true,
   },
 };
+
+const SESSION_STATES = Object.freeze({
+  active: 'active',
+  expired: 'expired',
+  revoked: 'revoked',
+  restored: 'restored',
+  unauthenticated: 'unauthenticated',
+});
+
+const HANDOFF_TTL_MS = 10 * 60 * 1000;
 
 const API_BASE_URL = (() => {
   const configured = window.GOVTRADE_API_BASE_URL || document.body?.dataset?.apiBaseUrl || '';
@@ -251,6 +270,29 @@ function renderAuthState() {
   }
 }
 
+function getSessionState(rawSession) {
+  if (!rawSession) {
+    return SESSION_STATES.unauthenticated;
+  }
+
+  const now = Date.now();
+  const expiresAt = Number(rawSession.expiresAt || 0);
+  if (rawSession.revokedAt) {
+    return SESSION_STATES.revoked;
+  }
+  if (expiresAt && expiresAt < now) {
+    return SESSION_STATES.expired;
+  }
+  if (rawSession.state === SESSION_STATES.restored) {
+    return SESSION_STATES.restored;
+  }
+  return SESSION_STATES.active;
+}
+
+function isAuthenticatedState(state) {
+  return state === SESSION_STATES.active || state === SESSION_STATES.restored;
+}
+
 function checkAuthStatus() {
   const raw = localStorage.getItem(STORAGE_KEYS.session);
   if (!raw) {
@@ -260,7 +302,13 @@ function checkAuthStatus() {
   }
 
   try {
-    APP.user = JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    const sessionState = getSessionState(parsed);
+    APP.user = isAuthenticatedState(sessionState) ? parsed : null;
+    APP.accountReason = sessionState;
+    if (!isAuthenticatedState(sessionState)) {
+      localStorage.removeItem(STORAGE_KEYS.session);
+    }
   } catch {
     APP.user = null;
     localStorage.removeItem(STORAGE_KEYS.session);
@@ -273,14 +321,40 @@ function setCurrentUser(user) {
   APP.user = {
     name: user?.name || 'Applicant',
     email: user?.email || '',
+    state: SESSION_STATES.active,
+    createdAt: new Date().toISOString(),
+    expiresAt: Date.now() + 30 * 60 * 1000,
   };
   localStorage.setItem(STORAGE_KEYS.session, JSON.stringify(APP.user));
+  APP.accountReason = SESSION_STATES.active;
   renderAuthState();
 }
 
-function clearCurrentUser() {
+function clearCurrentUser(reason = SESSION_STATES.unauthenticated) {
+  const raw = localStorage.getItem(STORAGE_KEYS.session);
+  let parsed = null;
+  if (raw) {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      parsed = null;
+    }
+  }
+  if ((reason === SESSION_STATES.expired || reason === SESSION_STATES.revoked) && parsed) {
+    localStorage.setItem(
+      STORAGE_KEYS.session,
+      JSON.stringify({
+        ...parsed,
+        state: reason,
+        revokedAt: reason === SESSION_STATES.revoked ? new Date().toISOString() : undefined,
+        expiresAt: Date.now() - 1000,
+      })
+    );
+  } else {
+    localStorage.removeItem(STORAGE_KEYS.session);
+  }
   APP.user = null;
-  localStorage.removeItem(STORAGE_KEYS.session);
+  APP.accountReason = reason;
   renderAuthState();
 }
 
@@ -589,6 +663,186 @@ function hydrateInputFormatters() {
   }
 }
 
+function getSafeReturnPath(value) {
+  if (!value || typeof value !== 'string') {
+    return '/account';
+  }
+  if (!value.startsWith('/') || value.startsWith('//')) {
+    return '/account';
+  }
+  return value;
+}
+
+function navigateWithReason(path, reason, returnTo) {
+  const params = new URLSearchParams();
+  if (reason) {
+    params.set('reason', reason);
+  }
+  if (returnTo) {
+    params.set('returnTo', getSafeReturnPath(returnTo));
+  }
+  const query = params.toString();
+  window.location.href = query ? `${path}?${query}` : path;
+}
+
+function normalizeReasonToSessionState(reason) {
+  const map = {
+    logout: SESSION_STATES.unauthenticated,
+    unauthorized: SESSION_STATES.revoked,
+    expiry: SESSION_STATES.expired,
+    restored: SESSION_STATES.restored,
+    post_login: SESSION_STATES.active,
+  };
+  return map[reason] || SESSION_STATES.unauthenticated;
+}
+
+function renderAccountSessionState() {
+  const label = byId('account-session-state-label');
+  const message = byId('account-state-message');
+  const loginSection = byId('login-modal');
+  const authSection = byId('account-authenticated-panel');
+  if (!label || !message || !loginSection || !authSection) {
+    return;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const reason = params.get('reason');
+  const state = APP.user ? getSessionState(APP.user) : normalizeReasonToSessionState(reason);
+  const labelMap = {
+    [SESSION_STATES.active]: 'Active',
+    [SESSION_STATES.restored]: 'Restored',
+    [SESSION_STATES.expired]: 'Expired',
+    [SESSION_STATES.revoked]: 'Revoked',
+    [SESSION_STATES.unauthenticated]: 'Unauthenticated',
+  };
+  const messageMap = {
+    [SESSION_STATES.active]: 'Your session is active.',
+    [SESSION_STATES.restored]:
+      'Your session was restored after re-authentication. Continue where you left off.',
+    [SESSION_STATES.expired]: 'Your session expired. Please sign in again to continue.',
+    [SESSION_STATES.revoked]:
+      'Your session is no longer authorized. Please re-authenticate to proceed.',
+    [SESSION_STATES.unauthenticated]: 'Sign in to continue to your account-specific status.',
+  };
+
+  label.textContent = labelMap[state] || labelMap[SESSION_STATES.unauthenticated];
+  message.textContent = messageMap[state] || messageMap[SESSION_STATES.unauthenticated];
+
+  const authenticated = isAuthenticatedState(state) && Boolean(APP.user);
+  loginSection.classList.toggle('hidden', authenticated);
+  authSection.classList.toggle('hidden', !authenticated);
+}
+
+function buildStatusHandoff(user) {
+  if (!user) {
+    return null;
+  }
+  const issuedAt = Date.now();
+  return {
+    payload: {
+      accountHint: user.email || 'unknown-account',
+      sessionState: getSessionState(user),
+      source: '/account',
+    },
+    identifiers: {
+      handoffId: `handoff_${Math.random().toString(36).slice(2, 10)}`,
+      correlationId: `corr_${issuedAt}`,
+    },
+    freshness: {
+      issuedAt,
+      expiresAt: issuedAt + HANDOFF_TTL_MS,
+      ttlMs: HANDOFF_TTL_MS,
+    },
+    fallback: {
+      onMissingState: '/account?reason=unauthorized&returnTo=%2Fstatus',
+      onExpiredState: '/account?reason=expiry&returnTo=%2Fstatus',
+    },
+  };
+}
+
+function goToStatusFromAccount() {
+  if (!APP.user) {
+    navigateWithReason('/account', 'unauthorized', '/status');
+    return;
+  }
+  const handoff = buildStatusHandoff(APP.user);
+  if (!handoff) {
+    navigateWithReason('/account', 'unauthorized', '/status');
+    return;
+  }
+  sessionStorage.setItem(STORAGE_KEYS.handoff, JSON.stringify(handoff));
+  window.location.href = `/status?handoff=${encodeURIComponent(
+    handoff.identifiers.handoffId
+  )}&issuedAt=${handoff.freshness.issuedAt}`;
+}
+
+function renderStatusHandoffState() {
+  const summary = byId('status-handoff-summary');
+  const details = byId('status-handoff-details');
+  const reauthLink = byId('status-reauth-link');
+  if (!summary || !details || !reauthLink) {
+    return;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const handoffId = params.get('handoff');
+  const rawHandoff = sessionStorage.getItem(STORAGE_KEYS.handoff);
+  let handoff = null;
+  if (rawHandoff) {
+    try {
+      handoff = JSON.parse(rawHandoff);
+    } catch {
+      handoff = null;
+    }
+  }
+  const now = Date.now();
+  const isMissing = !handoff || !handoffId;
+  const isMismatch = Boolean(handoff && handoffId && handoff.identifiers.handoffId !== handoffId);
+  const isExpired = Boolean(
+    handoff && handoff.freshness?.expiresAt && handoff.freshness.expiresAt < now
+  );
+  const hasAuth = Boolean(APP.user);
+
+  reauthLink.href = `/account?reason=unauthorized&returnTo=${encodeURIComponent(
+    window.location.pathname
+  )}`;
+
+  if (hasAuth && handoff && !isMismatch && !isExpired) {
+    summary.textContent = 'Handoff verified. Account-specific status is available.';
+    details.classList.remove('hidden');
+    details.innerHTML = `
+      <p><strong>Handoff ID:</strong> ${escapeHtml(handoff.identifiers.handoffId)}</p>
+      <p><strong>Correlation ID:</strong> ${escapeHtml(handoff.identifiers.correlationId)}</p>
+      <p><strong>Fresh until:</strong> ${new Date(handoff.freshness.expiresAt).toLocaleString()}</p>
+      <p><strong>Account:</strong> ${escapeHtml(handoff.payload.accountHint)}</p>
+    `;
+    return;
+  }
+
+  details.classList.add('hidden');
+  if (!hasAuth) {
+    summary.textContent =
+      'You are currently unauthenticated. Sign in to recover account-specific status.';
+    return;
+  }
+  if (isMissing) {
+    summary.textContent = 'We could not find transfer state after refresh or deep-link navigation.';
+    return;
+  }
+  if (isMismatch) {
+    summary.textContent =
+      'The handoff token does not match current browser state. Start again from Account.';
+    return;
+  }
+  if (isExpired) {
+    summary.textContent =
+      'The handoff token is stale. Re-authenticate to generate a fresh handoff.';
+    reauthLink.href = '/account?reason=expiry&returnTo=%2Fstatus';
+  }
+}
+
+async function handleApplicationSubmit(event) {
+  event.preventDefault();
 function emitTelemetryEvent(eventName, payload = {}) {
   const eventPayload = {
     event: eventName,
@@ -635,7 +889,105 @@ function setSubmissionState(state, detail = {}) {
     actionEl.textContent = detail.action || '';
   }
 
+  renderApplicationSupportCta(state, detail);
+
   announceLive(detail.liveMessage || detail.message || `Submission status: ${state}.`);
+}
+
+function buildSupportEscalationUrl(context = {}) {
+  const params = new URLSearchParams();
+  Object.entries(context).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      params.set(key, String(value));
+    }
+  });
+
+  const queryString = params.toString();
+  return queryString ? `/support?${queryString}` : '/support';
+}
+
+function renderApplicationSupportCta(state, detail = {}) {
+  const cta = byId('application-support-cta');
+  const link = byId('application-support-link');
+  if (!cta || !link) {
+    return;
+  }
+}
+
+function buildSubmissionRequestId() {
+  if (window.crypto?.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+
+  return `req_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
+}
+
+function setSubmissionState(state, detail = {}) {
+  APP.applicationSubmission.state = state;
+  const stateEl = byId('application-submit-state');
+  const actionEl = byId('application-submit-action');
+
+  if (stateEl) {
+    const message =
+      detail.message ||
+      (state === 'loading'
+        ? 'Submitting your application…'
+        : state === 'success'
+          ? 'Application submitted successfully.'
+          : state === 'idle'
+            ? 'Ready to submit.'
+            : 'There was a problem with your submission.');
+    stateEl.textContent = message;
+  }
+
+  if (actionEl) {
+    actionEl.textContent = detail.action || '';
+  }
+
+  announceLive(detail.liveMessage || detail.message || `Submission status: ${state}.`);
+}
+
+function ensureErrorNode(field) {
+  if (!field) {
+    return null;
+  }
+
+  const errorId = `${field.id}-error`;
+  let errorNode = byId(errorId);
+  if (!errorNode) {
+    errorNode = document.createElement('p');
+    errorNode.id = errorId;
+    errorNode.className = 'field-error text-sm text-red-700 mt-1';
+    errorNode.setAttribute('role', 'alert');
+    field.insertAdjacentElement('afterend', errorNode);
+  }
+
+  return errorNode;
+}
+
+  const shouldShow = state === 'blocked' || state === 'retryable' || state === 'fatal';
+  cta.classList.toggle('hidden', !shouldShow);
+  if (!shouldShow) {
+    return;
+  }
+
+  const severity =
+    detail.supportSeverity ||
+    SUPPORT_ESCALATION_SEVERITY[
+      detail.failureModel || APP.applicationSubmission.lastFailureModel
+    ] ||
+    (state === 'fatal' ? 'high' : 'medium');
+  const supportUrl = buildSupportEscalationUrl({
+    source: 'apply',
+    escalation: '1',
+    severity,
+    failureModel: detail.failureModel || APP.applicationSubmission.lastFailureModel || 'unknown',
+    errorCode: detail.errorCode || '',
+    requestId: APP.applicationSubmission.requestId || '',
+    referenceId: APP.applicationSubmission.referenceId || '',
+  });
+
+  link.setAttribute('href', supportUrl);
 }
 
 function ensureErrorNode(field) {
@@ -870,6 +1222,8 @@ async function submitApplicationPayload(form, payload, options = {}) {
     setSubmissionState('retryable', {
       message: 'Network interruption while submitting.',
       action: 'Check your connection and retry. Your form data is preserved.',
+      failureModel: 'transient/network',
+      errorCode: 'NETWORK_FAILURE',
     });
     emitTelemetryEvent('submit_fail', {
       requestId,
@@ -909,6 +1263,8 @@ async function submitApplicationPayload(form, payload, options = {}) {
   setSubmissionState(failure.state, {
     message: `${failure.title}. ${failure.message}`,
     action: `${failure.action} Recovery path: data is preserved for retry.`,
+    failureModel: failure.failureModel,
+    errorCode: failure.code,
   });
   emitTelemetryEvent('submit_fail', {
     requestId,
@@ -937,6 +1293,9 @@ async function handleApplicationSubmit(event) {
     setSubmissionState('blocked', {
       message: 'Submission blocked until validation issues are fixed.',
       action: 'Fix the highlighted fields and submit again.',
+      failureModel: 'validation',
+      errorCode: 'CLIENT_VALIDATION_ERROR',
+      supportSeverity: 'low',
     });
     renderFormErrors(form, errors);
     emitTelemetryEvent('submit_fail', {
@@ -982,6 +1341,11 @@ async function handleContactSubmit(event) {
   const email = byId('contact-email')?.value.trim() || '';
   const subject = byId('contact-subject')?.value || 'general';
   const message = byId('contact-message')?.value.trim() || '';
+  const applicationId = byId('contact-application-id')?.value.trim() || '';
+  const path = byId('contact-route')?.value.trim() || '';
+  const errorCode = byId('contact-error-code')?.value.trim() || '';
+  const requestId = byId('contact-request-id')?.value.trim() || '';
+  const severity = byId('contact-severity')?.value || 'low';
 
   if (!name || !message) {
     showToast('Validation error', 'Please provide your name and message.', 'error');
@@ -997,7 +1361,17 @@ async function handleContactSubmit(event) {
   await withLoadingState(
     submitButton,
     async () => {
-      const response = await postJson(API_PATHS.contact, { name, email, subject, message });
+      const response = await postJson(API_PATHS.contact, {
+        name,
+        email,
+        subject,
+        message,
+        applicationId,
+        path,
+        errorCode,
+        requestId,
+        severity,
+      });
       if (!response.ok) {
         throw new Error(response.error || 'Unable to send your message right now.');
       }
@@ -1007,6 +1381,34 @@ async function handleContactSubmit(event) {
     },
     'Sending...'
   );
+}
+
+function hydrateSupportPrefill() {
+  const form = byId('contact-form');
+  if (!form) {
+    return;
+  }
+
+  const query = new URLSearchParams(window.location.search);
+  const prefillMap = [
+    { query: 'name', field: 'contact-name' },
+    { query: 'email', field: 'contact-email' },
+    { query: 'subject', field: 'contact-subject' },
+    { query: 'message', field: 'contact-message' },
+    { query: 'applicationId', field: 'contact-application-id' },
+    { query: 'source', field: 'contact-route' },
+    { query: 'errorCode', field: 'contact-error-code' },
+    { query: 'requestId', field: 'contact-request-id' },
+    { query: 'severity', field: 'contact-severity' },
+  ];
+
+  prefillMap.forEach(({ query: key, field }) => {
+    const input = byId(field);
+    const value = query.get(key);
+    if (input && value) {
+      input.value = value;
+    }
+  });
 }
 
 async function handleLogin(event) {
@@ -1035,16 +1437,30 @@ async function handleLogin(event) {
         email,
       };
       setCurrentUser(user);
+      const params = new URLSearchParams(window.location.search);
+      const returnTo = getSafeReturnPath(params.get('returnTo') || '/account');
+      const fromReason = params.get('reason');
+      const restoredFlow = fromReason === 'expiry' || fromReason === 'unauthorized';
+      if (restoredFlow) {
+        APP.user.state = SESSION_STATES.restored;
+        localStorage.setItem(STORAGE_KEYS.session, JSON.stringify(APP.user));
+      }
       closeLoginModal();
       showToast('Welcome back', `Signed in as ${user.name}.`, 'success');
+      if (returnTo === '/status') {
+        goToStatusFromAccount();
+      } else {
+        navigateWithReason('/account', restoredFlow ? 'restored' : 'post_login', returnTo);
+      }
     },
     'Signing in...'
   );
 }
 
 function logout() {
-  clearCurrentUser();
+  clearCurrentUser(SESSION_STATES.unauthenticated);
   showToast('Signed out', 'You have been logged out successfully.', 'info');
+  navigateWithReason('/account', 'logout', '/account');
 }
 
 function toggleChat() {
@@ -1166,7 +1582,16 @@ function initializeApp() {
   loadSavedPreferences();
   hydrateInputFormatters();
   hydrateApplicationUX();
+  hydrateSupportPrefill();
   syncA11yState();
+  const path = window.location.pathname;
+
+  if (path === '/account' || path.endsWith('/account.html')) {
+    renderAccountSessionState();
+  }
+  if (path === '/status' || path.endsWith('/status.html')) {
+    renderStatusHandoffState();
+  }
 
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') {

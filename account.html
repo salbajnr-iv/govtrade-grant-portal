@@ -1,2 +1,157 @@
-<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>GovTrade | Account</title><script src="https://cdn.tailwindcss.com"></script><script src="https://unpkg.com/lucide@latest"></script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Merriweather:wght@400;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="style.css"></head><body class="bg-slate-50" id="main-body"><a href="#main-content" class="skip-link">Skip to main content</a><div class="bg-slate-900 text-white py-2 px-4 text-sm"><div class="max-w-7xl mx-auto flex gap-4"><button onclick="toggleContrast()">High Contrast</button><button onclick="adjustFontSize(1)">A+</button><button onclick="adjustFontSize(-1)">A-</button></div></div><nav class="bg-white shadow-md"><div class="max-w-7xl mx-auto px-4 py-5 flex flex-wrap items-center justify-between gap-4"><a href="/" class="text-xl font-bold text-blue-900 serif">GovTrade Grants</a><div class="flex flex-wrap gap-x-4 gap-y-2 text-sm"><a href="/">Home</a><a href="/program">Program</a><a href="/apply">Apply</a><a href="/account">Account</a><a href="/support">Support</a><a href="/status">Status</a><a href="/legal">Legal</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/cookies">Cookies</a><a href="/accessibility">Accessibility</a></div></div></nav><main id="main-content" class="max-w-xl mx-auto px-4 py-12"><h1 class="text-3xl font-bold serif mb-5">Account Sign-In</h1><section id="login-modal" class="bg-white rounded-xl p-6 border"><h2 id="login-modal-title" class="text-2xl font-bold mb-4">Sign In to Your Account</h2><form onsubmit="handleLogin(event)" class="space-y-3"><input id="login-email" type="email" required class="w-full border rounded p-2" placeholder="you@example.com"><input id="login-password" type="password" required class="w-full border rounded p-2" placeholder="Password"><button class="bg-blue-700 text-white px-4 py-2 rounded">Sign In</button></form></section></main><footer class="bg-slate-900 text-slate-200 py-8 px-4"><div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4"><span>© 2026 GovTrade Grant Portal</span><div class="flex flex-wrap gap-x-4 gap-y-2 text-sm"><a href="/">Home</a><a href="/program">Program</a><a href="/apply">Apply</a><a href="/account">Account</a><a href="/support">Support</a><a href="/status">Status</a><a href="/legal">Legal</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/cookies">Cookies</a><a href="/accessibility">Accessibility</a></div></div></footer><div id="notification-toast" class="fixed top-24 right-4 bg-white border-l-4 border-green-500 shadow-lg rounded-lg p-4 transform translate-x-full transition-transform duration-300 z-50 max-w-sm"><h4 id="toast-title" class="font-bold">Success</h4><p id="toast-message" class="text-sm">Operation completed successfully.</p></div><script src="script.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GovTrade | Account</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Merriweather:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body class="bg-slate-50" id="main-body">
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <div class="bg-slate-900 text-white py-2 px-4 text-sm">
+      <div class="max-w-7xl mx-auto flex gap-4">
+        <button onclick="toggleContrast()">High Contrast</button
+        ><button onclick="adjustFontSize(1)">A+</button
+        ><button onclick="adjustFontSize(-1)">A-</button>
+      </div>
+    </div>
+    <nav class="bg-white shadow-md">
+      <div class="max-w-7xl mx-auto px-4 py-5 flex flex-wrap items-center justify-between gap-4">
+        <a href="/" class="text-xl font-bold text-blue-900 serif">GovTrade Grants</a>
+    <div class="bg-slate-900 px-4 py-2 text-sm text-white">
+      <div class="mx-auto flex max-w-7xl gap-4">
+        <button onclick="toggleContrast()">High Contrast</button>
+        <button onclick="adjustFontSize(1)">A+</button>
+        <button onclick="adjustFontSize(-1)">A-</button>
+      </div>
+    </div>
+    <nav class="bg-white shadow-md">
+      <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-5">
+        <a href="/" class="serif text-xl font-bold text-blue-900">GovTrade Grants</a>
+        <div class="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+          <a href="/">Home</a><a href="/program">Program</a><a href="/apply">Apply</a
+          ><a href="/account">Account</a><a href="/support">Support</a><a href="/status">Status</a
+          ><a href="/legal">Legal</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a
+          ><a href="/cookies">Cookies</a><a href="/accessibility">Accessibility</a>
+        </div>
+      </div>
+    </nav>
+    <main id="main-content" class="max-w-xl mx-auto px-4 py-12">
+      <h1 class="text-3xl font-bold serif mb-5">Account Sign-In</h1>
+      <section id="login-modal" class="bg-white rounded-xl p-6 border">
+        <h2 id="login-modal-title" class="text-2xl font-bold mb-4">Sign In to Your Account</h2>
+        <p class="text-sm text-slate-600 mb-4">
+          By signing in, you agree to current
+          <a href="/terms" class="underline text-blue-700">program terms</a>. Need access help?
+          <a
+            href="/support?source=account&subject=account&severity=high"
+            class="underline text-blue-700"
+            >Escalate to support</a
+          >.
+    <main id="main-content" class="mx-auto max-w-2xl space-y-5 px-4 py-12">
+      <h1 class="serif text-3xl font-bold">Account Sign-In</h1>
+
+      <section id="account-state-banner" class="rounded-xl border border-slate-200 bg-white p-4">
+        <p class="text-sm text-slate-700">
+          <strong>Session state:</strong>
+          <span id="account-session-state-label">Unauthenticated</span>
+        </p>
+        <p id="account-state-message" class="mt-2 text-sm text-slate-600">
+          Sign in to continue to your account-specific status.
+        </p>
+      </section>
+
+      <section id="login-modal" class="rounded-xl border bg-white p-6">
+        <h2 id="login-modal-title" class="mb-2 text-2xl font-bold">Sign In to Your Account</h2>
+        <p class="mb-4 text-sm text-slate-600">
+          If your session expired or was revoked, signing in restores access and returns you to your
+          previous destination.
+        </p>
+        <form onsubmit="handleLogin(event)" class="space-y-3">
+          <input
+            id="login-email"
+            type="email"
+            required
+            class="w-full border rounded p-2"
+            placeholder="you@example.com"
+          /><input
+            id="login-password"
+            type="password"
+            required
+            class="w-full border rounded p-2"
+            placeholder="Password"
+          /><button class="bg-blue-700 text-white px-4 py-2 rounded">Sign In</button>
+        </form>
+      </section>
+    </main>
+    <footer class="bg-slate-900 text-slate-200 py-8 px-4">
+      <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+            class="w-full rounded border p-2"
+            placeholder="you@example.com"
+          />
+          <input
+            id="login-password"
+            type="password"
+            required
+            class="w-full rounded border p-2"
+            placeholder="Password"
+          />
+          <button class="rounded bg-blue-700 px-4 py-2 text-white">Sign In</button>
+        </form>
+      </section>
+
+      <section id="account-authenticated-panel" class="hidden rounded-xl border bg-white p-6">
+        <h2 class="mb-2 text-2xl font-bold">You are signed in</h2>
+        <p class="mb-4 text-sm text-slate-600">
+          Continue to your account-specific status or sign out from this device.
+        </p>
+        <div class="flex flex-wrap gap-3">
+          <button
+            id="account-view-status-btn"
+            type="button"
+            class="rounded bg-blue-700 px-4 py-2 text-white"
+            onclick="goToStatusFromAccount()"
+          >
+            View Application Status
+          </button>
+          <button
+            id="account-logout-btn"
+            type="button"
+            class="rounded border border-slate-300 px-4 py-2 text-slate-900"
+            onclick="logout()"
+          >
+            Sign Out
+          </button>
+        </div>
+      </section>
+    </main>
+    <footer class="bg-slate-900 px-4 py-8 text-slate-200">
+      <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4">
+        <span>© 2026 GovTrade Grant Portal</span>
+        <div class="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+          <a href="/">Home</a><a href="/program">Program</a><a href="/apply">Apply</a
+          ><a href="/account">Account</a><a href="/support">Support</a><a href="/status">Status</a
+          ><a href="/legal">Legal</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a
+          ><a href="/cookies">Cookies</a><a href="/accessibility">Accessibility</a>
+        </div>
+      </div>
+    </footer>
+    <div
+      id="notification-toast"
+      class="fixed top-24 right-4 bg-white border-l-4 border-green-500 shadow-lg rounded-lg p-4 transform translate-x-full transition-transform duration-300 z-50 max-w-sm"
+      class="fixed right-4 top-24 z-50 max-w-sm translate-x-full transform rounded-lg border-l-4 border-green-500 bg-white p-4 shadow-lg transition-transform duration-300"
+    >
+      <h4 id="toast-title" class="font-bold">Success</h4>
+      <p id="toast-message" class="text-sm">Operation completed successfully.</p>
+    </div>
+    <script src="script.js"></script>
+  </body>
+</html>
